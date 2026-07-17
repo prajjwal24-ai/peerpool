@@ -3,12 +3,13 @@ import Resource from "../models/resourceModel.js";
 
 export const createResource = async (req, res) => {
     try {
-        const { title, link, type, poolId, sender } = req.body;
+        const { title, link, type, poolId,content, sender } = req.body;
         const resource = await Resource.create({
             title,
             link,
             type,
             poolId,
+            content,
             sender
         });
 
@@ -22,6 +23,8 @@ export const getPoolResources = async (req, res) =>{
     try{
         const {poolId} = req.params;
         const resources = (await Resource.find({poolId})).toSorted({createdAt : -1});
+
+        const sortedResources = [...resources].sort((a,b)=> b.createdAt - a.createdAt)
 
         res.status(200).json({
             success : true,
