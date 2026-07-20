@@ -1,24 +1,25 @@
-import { useState, useContext } from 'react';
-import { AuthContext } from '../../context/AuthContext';
+import { useState } from 'react';
+import API from '../../services/api';
 import Galaxy from '../../components/ui/Galaxy';
 
-function Login({ onSwitch }) {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+function Register({ onSwitch }) {
+    const [formData, setFormData] = useState({ name: '', email: '', password: '' });
     const [error, setError] = useState('');
-    const { login } = useContext(AuthContext);
+    const [success, setSuccess] = useState('');
+
+    const handleChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setSuccess('');
         try {
-            const data = await login(email, password);
-            if (data) {
-                console.log('Login Successful! Data:', data);
-            }
+            await API.post('/auth/register', formData);
+            setSuccess('Account successfully ban gaya! Ab Sign In kar lo.');
         } catch (err) {
-            console.error('Login failed:', err);
-            setError(err.response?.data?.message || 'Invalid Email or Password!');
+            setError(err.response?.data?.message || 'Registration failed!');
         }
     };
 
@@ -38,16 +39,16 @@ function Login({ onSwitch }) {
                 transparent={true}
             />
 
-            {/* Login Form Container (Glassmorphism Effect) */}
+            {/* Register Form Container (Glassmorphism Effect) */}
             <form 
                 onSubmit={handleSubmit} 
                 className="relative z-10 p-8 bg-slate-900/60 backdrop-blur-lg rounded-2xl shadow-2xl border border-slate-800/80 w-full max-w-md"
             >
                 <div className="text-center mb-8">
                     <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-                        PeerPool
+                        Join PeerPool
                     </h2>
-                    <p className="text-slate-400 text-sm mt-1">Welcome back! Please enter your details.</p>
+                    <p className="text-slate-400 text-sm mt-1">Start your journey with us today.</p>
                 </div>
 
                 {error && (
@@ -55,15 +56,36 @@ function Login({ onSwitch }) {
                         {error}
                     </div>
                 )}
+                {success && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm p-3 rounded-lg mb-6 text-center">
+                        {success}
+                    </div>
+                )}
 
-                <div className="mb-5">
+                <div className="mb-4">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                        Full Name
+                    </label>
+                    <input 
+                        type="text" 
+                        name="name" 
+                        value={formData.name} 
+                        onChange={handleChange}
+                        placeholder="Prajjwal"
+                        className="w-full px-4 py-3 bg-slate-800/60 border border-slate-700/80 rounded-xl focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all text-sm"
+                        required 
+                    />
+                </div>
+
+                <div className="mb-4">
                     <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
                         Email Address
                     </label>
                     <input 
                         type="email" 
-                        value={email} 
-                        onChange={(e) => setEmail(e.target.value)}
+                        name="email" 
+                        value={formData.email} 
+                        onChange={handleChange}
                         placeholder="you@example.com"
                         className="w-full px-4 py-3 bg-slate-800/60 border border-slate-700/80 rounded-xl focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all text-sm"
                         required 
@@ -76,8 +98,9 @@ function Login({ onSwitch }) {
                     </label>
                     <input 
                         type="password" 
-                        value={password} 
-                        onChange={(e) => setPassword(e.target.value)}
+                        name="password" 
+                        value={formData.password} 
+                        onChange={handleChange}
                         placeholder="••••••••"
                         className="w-full px-4 py-3 bg-slate-800/60 border border-slate-700/80 rounded-xl focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all text-sm"
                         required 
@@ -88,16 +111,16 @@ function Login({ onSwitch }) {
                     type="submit" 
                     className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg shadow-cyan-500/25 transition-all transform active:scale-[0.98]"
                 >
-                    Sign In 🚀
+                    Create Account ✨
                 </button>
 
                 <p className="mt-6 text-sm text-center text-slate-400">
-                    Don't have an account?{' '}
+                    Already have an account?{' '}
                     <span 
                         onClick={onSwitch} 
                         className="text-cyan-400 hover:text-cyan-300 font-semibold cursor-pointer underline underline-offset-4"
                     >
-                        Create Account
+                        Sign In
                     </span>
                 </p>
             </form>
@@ -105,4 +128,4 @@ function Login({ onSwitch }) {
     );
 }
 
-export default Login;
+export default Register;
