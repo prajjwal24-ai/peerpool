@@ -48,3 +48,39 @@ export const getAllGroups = async(req,res)=>{
         });
 }
 }
+
+export const joinGroup = async (req,res) => {
+    try{
+        const groupId = req.params.id;
+        const userId = req.user._id;
+
+        const group = await Group.findById(groupId);
+
+        if (!group) {
+            return res.status(404).json({
+                success: false,
+                message: 'Group nahi mila!'
+            });
+        }
+
+        if (group.members.includes(userId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Aap pehle se is group ke member ho!'
+            });
+        }
+        group.members.push(userId);
+        await group.save();
+        res.status(200).json({
+            success: true,
+            message: 'Group join kar liya! 🤝',
+            group
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Group join karne me error aaya',
+            error: error.message
+        });
+}
+};
