@@ -1,0 +1,36 @@
+import mongoose from "mongoose";
+
+const groupSChema = new mongoose.Schema({
+    name : {
+        type : String,
+        required : true,
+        trim: true
+    },
+    description: {
+        type: String,
+        required: true
+    },
+    category : {
+        type : String,
+        default : 'General'
+    },
+    skillsRequired: [
+        {
+            type : String 
+        }
+    ],
+    admin: {
+        type : mongoose.Schema.Types.ObjectId,
+        ref : 'User',
+        required: true
+    },
+    members: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }]
+}, { timestamps: true }
+)
+
+const Group = mongoose.model('Group', groupSchema);
+
+export default Group;
