@@ -84,3 +84,27 @@ export const joinGroup = async (req,res) => {
         });
 }
 };
+
+export const getGroupById = async (req,res)=>{
+    try{
+        const group = await Group.findById(req.params.id)
+                .populate('admin' , 'name email')
+                .populate('member' , 'name email');
+                if (!group) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Group nahi mila!'
+                });
+            }
+            res.status(200).json({
+            success: true,
+            group
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Group details fetch karne me error aaya',
+            error: error.message
+        });
+}
+};
