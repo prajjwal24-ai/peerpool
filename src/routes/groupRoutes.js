@@ -1,5 +1,4 @@
 import express from 'express';
-import { createGroup, getAllGroups, joinGroup } from '../controllers/groupController.js';
 import protect from '../middleware/authMiddleware.js';
 import { createGroup, getAllGroups, joinGroup, getGroupById } from '../controllers/groupController.js';
 
