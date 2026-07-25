@@ -5,7 +5,7 @@ import Login from './features/auth/Login';
 import Register from './features/auth/Register';
 import Dashboard from './features/dashboard/Dashboard';
 import GroupPage from './features/dashboard/GroupPage';
-import ProtectedRoute from './components/ProtectedRoute';
+import ProtectedRoute from './components/ProtectedRoutes';
 
 function AppContent() {
     const [isLoginView, setIsLoginView] = useState(true);
