@@ -1,13 +1,13 @@
 import { useState, useContext } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, AuthContext } from './context/AuthContext';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { AuthContext } from './context/AuthContext';
 import Login from './features/auth/Login';
 import Register from './features/auth/Register';
 import Dashboard from './features/dashboard/Dashboard';
 import GroupPage from './features/dashboard/GroupPage';
 import ProtectedRoute from './components/ProtectedRoutes';
 
-function AppContent() {
+export default function App() {
     const [isLoginView, setIsLoginView] = useState(true);
     const { user, loading } = useContext(AuthContext);
 
@@ -19,50 +19,46 @@ function AppContent() {
         );
     }
 
-    // Agar User Logged-in nahi hai -> Toggle between Login & Register
-    if (!user) {
-        return isLoginView ? (
-            <Login onSwitch={() => setIsLoginView(false)} />
-        ) : (
-            <Register onSwitch={() => setIsLoginView(true)} />
-        );
-    }
-
-    // Agar User Logged-in hai -> Full React Router Navigation
     return (
-        <Router>
-            <Routes>
-                {/* Main Dashboard Feed */}
-                <Route 
-                    path="/" 
-                    element={
-                        <ProtectedRoute>
-                            <Dashboard />
-                        </ProtectedRoute>
-                    } 
-                />
-
-                {/* Group Channel & Chat Page */}
-                <Route 
-                    path="/group/:id" 
-                    element={
-                        <ProtectedRoute>
-                            <GroupPage />
-                        </ProtectedRoute>
-                    } 
-                />
-
-                {/* Catch-all route to redirect back to Dashboard */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-        </Router>
-    );
-}
-
-export default function App() {
-    return (
-        <AuthProvider>
-            <AppContent />
-        </AuthProvider>
+        <Routes>
+            {/* Unauthenticated Routes */}
+            {!user ? (
+                <>
+                    <Route 
+                        path="/login" 
+                        element={
+                            isLoginView ? (
+                                <Login onSwitch={() => setIsLoginView(false)} />
+                            ) : (
+                                <Register onSwitch={() => setIsLoginView(true)} />
+                            )
+                        } 
+                    />
+                    {/* Kisi bhi random path par ho, login par bhejo */}
+                    <Route path="*" element={<Navigate to="/login" replace />} />
+                </>
+            ) : (
+                <>
+                    {/* Authenticated Routes */}
+                    <Route 
+                        path="/" 
+                        element={
+                            <ProtectedRoute>
+                                <Dashboard />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/group/:id" 
+                        element={
+                            <ProtectedRoute>
+                                <GroupPage />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </>
+            )}
+        </Routes>
     );
 }

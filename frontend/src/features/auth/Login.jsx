@@ -1,4 +1,5 @@
 import { useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom'; // 1. Navigate import kiya
 import { AuthContext } from '../../context/AuthContext';
 import Galaxy from '../../components/ui/Galaxy';
 
@@ -6,19 +7,27 @@ function Login({ onSwitch }) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false); // 2. Loading state
+
     const { login } = useContext(AuthContext);
+    const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setIsSubmitting(true);
+
         try {
             const data = await login(email, password);
             if (data) {
                 console.log('Login Successful! Data:', data);
+                navigate('/');
             }
         } catch (err) {
             console.error('Login failed:', err);
             setError(err.response?.data?.message || 'Invalid Email or Password!');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -86,9 +95,10 @@ function Login({ onSwitch }) {
 
                 <button 
                     type="submit" 
-                    className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg shadow-cyan-500/25 transition-all transform active:scale-[0.98]"
+                    disabled={isSubmitting}
+                    className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-cyan-500/25 transition-all transform active:scale-[0.98]"
                 >
-                    Sign In 🚀
+                    {isSubmitting ? 'Signing In... ⚡' : 'Sign In 🚀'}
                 </button>
 
                 <p className="mt-6 text-sm text-center text-slate-400">
