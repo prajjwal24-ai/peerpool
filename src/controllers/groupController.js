@@ -1,40 +1,57 @@
 import Group from '../models/Group.js';
 
-export const createGroup = async (req,res)=>{
-    try{
-        const {name, description, category , skillsRequired} = req.body;
-        let formattedSkills = [];
-        if(skillsRequired){
-            formattedSkills = Array.isArray(skillsRequired)?skillsRequired:skillsRequired.split(',').map(skill => skill.trim());
+export const createGroup = async (req, res) => {
+    try {
+        const { name, description, category, skillsRequired } = req.body;
 
+        if (!name || !description) {
+            return res.status(400).json({
+                success: false,
+                message: 'Name and description are required!'
+            });
         }
-        const newGroup = new Group ({
-            name, descriptioon, category, 
+
+        let formattedSkills = [];
+        if (skillsRequired) {
+            formattedSkills = Array.isArray(skillsRequired) 
+                ? skillsRequired 
+                : skillsRequired.split(',').map(skill => skill.trim());
+        }
+
+        // 💡 FIX 1: Fixed 'descriptioon' -> 'description'
+        // 💡 FIX 2: Fixed 'member' -> 'members'
+        const newGroup = new Group({
+            name, 
+            description, 
+            category: category || 'General', 
             skillsRequired: formattedSkills,
             admin: req.user._id,
-            member : [req.user._id]
+            members: [req.user._id]
         });
+
         await newGroup.save();
+
         res.status(201).json({
             success: true,
             message: 'Group successfully ban gaya! 🎉',
             group: newGroup
         });
     } catch (error) {
+        console.error("Create Group Error:", error);
         res.status(500).json({
             success: false,
             message: 'Group banane me error aaya',
             error: error.message
         });
-}
+    }
 };
 
-export const getAllGroups = async(req,res)=>{
-    try{
+export const getAllGroups = async (req, res) => {
+    try {
         const groups = await Group.find()
             .populate('admin', 'name email')
-            .populate('members','name email')
-            .sort({createdAt: -1});
+            .populate('members', 'name email')
+            .sort({ createdAt: -1 });
         
         res.status(200).json({
             success: true,
@@ -46,11 +63,11 @@ export const getAllGroups = async(req,res)=>{
             message: 'Groups fetch karne me error aaya',
             error: error.message
         });
-}
-}
+    }
+};
 
-export const joinGroup = async (req,res) => {
-    try{
+export const joinGroup = async (req, res) => {
+    try {
         const groupId = req.params.id;
         const userId = req.user._id;
 
@@ -69,8 +86,10 @@ export const joinGroup = async (req,res) => {
                 message: 'Aap pehle se is group ke member ho!'
             });
         }
+
         group.members.push(userId);
         await group.save();
+
         res.status(200).json({
             success: true,
             message: 'Group join kar liya! 🤝',
@@ -82,21 +101,24 @@ export const joinGroup = async (req,res) => {
             message: 'Group join karne me error aaya',
             error: error.message
         });
-}
+    }
 };
 
-export const getGroupById = async (req,res)=>{
-    try{
+export const getGroupById = async (req, res) => {
+    try {
+        // 💡 FIX 3: Fixed '.populate("member")' -> '.populate("members")'
         const group = await Group.findById(req.params.id)
-                .populate('admin' , 'name email')
-                .populate('member' , 'name email');
-                if (!group) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Group nahi mila!'
-                });
-            }
-            res.status(200).json({
+            .populate('admin', 'name email')
+            .populate('members', 'name email');
+
+        if (!group) {
+            return res.status(404).json({
+                success: false,
+                message: 'Group nahi mila!'
+            });
+        }
+
+        res.status(200).json({
             success: true,
             group
         });
@@ -106,5 +128,5 @@ export const getGroupById = async (req,res)=>{
             message: 'Group details fetch karne me error aaya',
             error: error.message
         });
-}
+    }
 };
