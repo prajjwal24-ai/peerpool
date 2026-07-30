@@ -30,7 +30,6 @@ const groupSchema = new mongoose.Schema({
     }]
 }, { timestamps: true });
 
-// 💡 FIX: Prevents OverwriteModelError
 const Group = mongoose.models.Group || mongoose.model('Group', groupSchema);
 
 export default Group;
