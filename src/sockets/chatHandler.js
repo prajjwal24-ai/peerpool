@@ -17,4 +17,18 @@ export const registerChatHanders = (io,socket)=>{
             createdAt: new Date(),
         }
     })
+    socket.to(groupId).emit('receive-message', payload);
+    try{
+        await Message.create({
+            group: groupId,
+            sender : socket.user.Id,
+            content,
+        })
+    } catch(err){
+        console.error('sorry But right now this text is not saved in db ', err);
+    }
+    socket.on('leave-group',(groupId)=>{
+        socket.leave(groupId);
+        console.log(`User ${socket.user.id} left group room: ${groupId}`);
+    })
 }
