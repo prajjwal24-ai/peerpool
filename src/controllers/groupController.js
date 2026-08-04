@@ -1,4 +1,5 @@
 import Group from '../models/Group.js';
+import Message from '../models/Message.js';
 
 export const createGroup = async (req, res) => {
     try {
@@ -18,8 +19,6 @@ export const createGroup = async (req, res) => {
                 : skillsRequired.split(',').map(skill => skill.trim());
         }
 
-        // 💡 FIX 1: Fixed 'descriptioon' -> 'description'
-        // 💡 FIX 2: Fixed 'member' -> 'members'
         const newGroup = new Group({
             name, 
             description, 
@@ -129,4 +128,22 @@ export const getGroupById = async (req, res) => {
             error: error.message
         });
     }
+};
+
+export const getGroupMessages = async (req, res, next) => {
+  try {
+    const { id } = req.params; // Group ID
+
+    
+    const messages = await Message.find({ group: id })
+      .populate('sender', 'name email avatar')
+      .sort({ createdAt: 1 }); 
+
+    res.status(200).json({
+      success: true,
+      data: messages,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
