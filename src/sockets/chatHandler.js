@@ -7,6 +7,7 @@ export const registerChatHanders = (io,socket)=>{
 
     socket.on('send_message', async(data)=>{
         const {groupId, content} = data;
+        if (!content || !content.trim()) return;
         const payload = {
             groupId,
             sender:{
@@ -31,4 +32,12 @@ export const registerChatHanders = (io,socket)=>{
         socket.leave(groupId);
         console.log(`User ${socket.user.id} left group room: ${groupId}`);
     })
+    socket.on('typing', ({ groupId, isTyping }) => {
+        
+    socket.to(groupId).emit('user_typing', {
+    userId: socket.user.id,
+    userName: socket.user.name,
+    isTyping,
+  });
+});
 }

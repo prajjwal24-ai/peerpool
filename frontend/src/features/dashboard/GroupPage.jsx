@@ -3,11 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import API from '../../services/api';
 import Navbar from '../../components/Navbar';
+import GroupChat from '../../components/GroupChat'; 
 
 export default function GroupPage() {
-    const { id } = useParams(); // URL params se group ki _id mil gayi!
+    const { id } = useParams();
     const navigate = useNavigate();
-    const { user } = useContext(AuthContext);
+    const { user, token } = useContext(AuthContext); 
 
     const [group, setGroup] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -30,7 +31,7 @@ export default function GroupPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center font-semibold text-cyan-400">
-                Loading Channel Space... ⚡
+                Loading Channel Space ....
             </div>
         );
     }
@@ -43,7 +44,7 @@ export default function GroupPage() {
                     onClick={() => navigate('/')} 
                     className="px-4 py-2 bg-slate-800 text-cyan-400 font-semibold rounded-xl text-sm"
                 >
-                    ← Wapas Dashboard Par Chalo
+                     Wapas Dashboard Par Chalo
                 </button>
             </div>
         );
@@ -55,7 +56,7 @@ export default function GroupPage() {
 
             <div className="max-w-7xl w-full mx-auto p-6 flex-1 flex flex-col md:flex-row gap-6">
                 
-                {/* Left Side: Channel Main Feed / Chat Placeholder */}
+                {/* Left Side: Channel Main Feed / Chat */}
                 <div className="flex-1 bg-slate-900/60 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between backdrop-blur-md">
                     
                     {/* Header */}
@@ -75,21 +76,11 @@ export default function GroupPage() {
                         </button>
                     </div>
 
-                    {/* Chat Messages Placeholder */}
-                    <div className="flex-1 min-h-[350px] bg-slate-950/50 rounded-xl p-4 border border-slate-800/80 flex items-center justify-center text-slate-500 text-sm">
-                        Live perpool Chat Coming Up Next Here! (Socket.io Space)
-                    </div>
-
-                    {/* Message Input Box */}
-                    <div className="mt-4 flex gap-2">
-                        <input 
-                            type="text" 
-                            placeholder={`Message #${group.name}...`} 
-                            className="flex-1 bg-slate-800/80 border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-400 text-white"
-                        />
-                        <button className="px-5 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-xl text-sm">
-                            Send
-                        </button>
+                    {/* 3. Real-time Chat Component Rendered Here */}
+                    <div className="flex-1 min-h-[400px]">
+                        {user && token && (
+                            <GroupChat groupId={id} currentUser={user} token={token} />
+                        )}
                     </div>
                 </div>
 
@@ -131,4 +122,3 @@ export default function GroupPage() {
         </div>
     );
 }
-

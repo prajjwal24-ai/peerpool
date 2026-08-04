@@ -19,10 +19,10 @@ export default function CreateGroupModal({isOpen, onClose, onGroupCreated }) {
         setError('');
         try {
             await API.post('/groups/create', formData);
-            // Form clear kar do
+            
             setFormData({ name: '', description: '', category: 'Web Dev', skillsRequired: '' });
-            onGroupCreated(); // Dashboard par groups ki list refresh karega
-            onClose(); // Modal band kar do
+            onGroupCreated(); 
+            onClose();
         } catch (err) {
             setError(err.response?.data?.message || 'Group create nahi ho paya!');
         } finally {

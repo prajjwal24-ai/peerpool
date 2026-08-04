@@ -1,25 +1,26 @@
 import { useEffect, useState } from 'react';
+import axios from 'axios'; // 1. Axios import fixed
 import { socket, connectSocket } from '../socket';
 
 import ElectricBorder from './react-bits/ElectricBorder';
 
-export default function GroupChat({ groupId, currentUser, token }){
-    const [messages, setMessages] = useState([]);
-    const [text, setText] = useState('');
-    
-    useEffect(() => {
-        if(token){
-            connectSocket(token);
-        }
-        const fetchChatHistory = async () => {
+export default function GroupChat({ groupId, currentUser, token }) {
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState('');
+  const [loading, setLoading] = useState(true); // 2. Loading state added
+
+  useEffect(() => {
+    if (token) {
+      connectSocket(token);
+    }
+
+    const fetchChatHistory = async () => {
       try {
         setLoading(true);
-        
-        // 👇 Aapse pucha gaya code YAHAN AAYEGA
         const response = await axios.get(
           `http://localhost:5000/api/groups/${groupId}/messages`,
           {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
           }
         );
 
@@ -32,20 +33,24 @@ export default function GroupChat({ groupId, currentUser, token }){
         setLoading(false);
       }
     };
+
     fetchChatHistory();
 
     socket.emit('join_group', groupId);
-    const handleReceiveMessage = (newMessage) => {
-    setMessages((prevMessages) => [...prevMessages, newMessage]);
-    };
-    socket.on('receive_message', handleReceiveMessage);
-    return () => {
-        socket.off('receive_message', handleReceiveMessage);
-        socket.emit('leave_group', groupId);
-    };
-    },[groupId, token]);
 
-    const handleSendMessage = (e) => {
+    const handleReceiveMessage = (newMessage) => {
+      setMessages((prevMessages) => [...prevMessages, newMessage]);
+    };
+
+    socket.on('receive_message', handleReceiveMessage);
+
+    return () => {
+      socket.off('receive_message', handleReceiveMessage);
+      socket.emit('leave_group', groupId);
+    };
+  }, [groupId, token]);
+
+  const handleSendMessage = (e) => {
     e.preventDefault();
     if (!text.trim()) return;
 
@@ -55,7 +60,7 @@ export default function GroupChat({ groupId, currentUser, token }){
     const localMessage = {
       groupId,
       sender: {
-        id: currentUser._id,
+        _id: currentUser._id, // Mongo format kept consistent
         name: currentUser.name || 'You',
       },
       content: text,
@@ -66,16 +71,15 @@ export default function GroupChat({ groupId, currentUser, token }){
     setText('');
   };
 
-  
-
-return (
+  return (
     <ElectricBorder color="#6366f1" speed={1.5}>
       <div className="flex flex-col h-[500px] w-full max-w-2xl bg-slate-900/90 backdrop-blur-md rounded-xl p-4 shadow-xl border border-indigo-500/30">
-        
         {/* Header */}
         <div className="border-b border-slate-800 pb-3 mb-4 flex justify-between items-center">
           <div>
-            <h3 className="text-lg font-bold text-white tracking-wide">PeerPool Group Chat</h3>
+            <h3 className="text-lg font-bold text-white tracking-wide">
+              PeerPool Group Chat
+            </h3>
             <p className="text-xs text-indigo-400 font-mono">ID: {groupId}</p>
           </div>
           <span className="flex h-2 w-2 relative">
@@ -86,27 +90,43 @@ return (
 
         {/* Message Area */}
         <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-          {messages.map((msg, idx) => {
-            const isMe = msg.sender?.id === currentUser._id;
-            return (
-              <div key={idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+          {loading ? (
+            <div className="text-center text-indigo-400/80 mt-12 text-sm font-medium animate-pulse">
+              Loading chat history... ⚡
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="text-center text-slate-500 mt-12 text-sm">
+              No messages yet. Say hello! 👋
+            </div>
+          ) : (
+            messages.map((msg, idx) => {
+              // 3. Robust sender check (_id fallback for REST DB vs Socket payload)
+              const senderId = msg.sender?._id || msg.sender?.id;
+              const isMe = senderId === currentUser?._id;
+
+              return (
                 <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm backdrop-blur-sm ${
-                    isMe
-                      ? 'bg-indigo-600 text-white rounded-br-none shadow-md shadow-indigo-600/20'
-                      : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700'
-                  }`}
+                  key={msg._id || idx}
+                  className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                 >
-                  {!isMe && (
-                    <p className="text-[10px] font-semibold text-indigo-400 mb-0.5">
-                      {msg.sender?.name}
-                    </p>
-                  )}
-                  <p className="break-words">{msg.content}</p>
+                  <div
+                    className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm backdrop-blur-sm ${
+                      isMe
+                        ? 'bg-indigo-600 text-white rounded-br-none shadow-md shadow-indigo-600/20'
+                        : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700'
+                    }`}
+                  >
+                    {!isMe && (
+                      <p className="text-[10px] font-semibold text-indigo-400 mb-0.5">
+                        {msg.sender?.name}
+                      </p>
+                    )}
+                    <p className="break-words">{msg.content}</p>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
 
         {/* Input Form */}

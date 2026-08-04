@@ -14,10 +14,23 @@ const messageSchema = new mongoose.Schema(
         },
         content:{
             type : String,
+            default: '',
             required: true,
             trim: true,
         },
-        
+        messageType: {
+      type: String,
+      enum: ['text', 'file', 'image'],
+      default: 'text',
+    },
+    fileUrl: {
+      type: String,
+      default: '', 
+    },
+    fileName: {
+      type: String,
+      default: '',
+    },
     },
     {
         timestamps: true,
