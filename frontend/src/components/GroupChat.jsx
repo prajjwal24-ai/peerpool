@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import axios from 'axios'; // 1. Axios import fixed
+import { useEffect, useState, useRef } from 'react';
+import axios from 'axios';
 import { socket, connectSocket } from '../socket';
 
 import ElectricBorder from './react-bits/ElectricBorder';
@@ -7,7 +7,13 @@ import ElectricBorder from './react-bits/ElectricBorder';
 export default function GroupChat({ groupId, currentUser, token }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
-  const [loading, setLoading] = useState(true); // 2. Loading state added
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false); // File upload state
+
+  const [typingUser, setTypingUser] = useState('');
+  const typingTimeoutRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null); // File picker ref
 
   useEffect(() => {
     if (token) {
@@ -42,28 +48,114 @@ export default function GroupChat({ groupId, currentUser, token }) {
       setMessages((prevMessages) => [...prevMessages, newMessage]);
     };
 
+    const handleUserTyping = ({ userName, isTyping }) => {
+      setTypingUser(isTyping ? userName : '');
+    };
+
     socket.on('receive_message', handleReceiveMessage);
+    socket.on('user_typing', handleUserTyping);
 
     return () => {
       socket.off('receive_message', handleReceiveMessage);
+      socket.off('user_typing', handleUserTyping);
       socket.emit('leave_group', groupId);
     };
   }, [groupId, token]);
+
+  // Auto Scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, typingUser]);
+
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setText(value);
+
+    if (value.trim()) {
+      socket.emit('typing', { groupId, isTyping: true });
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit('typing', { groupId, isTyping: false });
+      }, 2000);
+    } else {
+      socket.emit('typing', { groupId, isTyping: false });
+    }
+  };
+
+  // 👇 File Select/Upload Handler
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      setUploading(true);
+      // 1. Upload file to Cloudinary via backend API
+      const res = await axios.post('http://localhost:5000/api/chat/upload', formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (res.data.success) {
+        const { fileUrl, fileType, fileName } = res.data;
+
+        // 2. Emit file via Socket
+        const messageData = {
+          groupId,
+          content: fileName || 'Attached Document',
+          fileUrl,
+          fileType,
+        };
+        socket.emit('send_message', messageData);
+
+        // 3. Local optimistic update
+        const localMessage = {
+          groupId,
+          sender: {
+            _id: currentUser._id,
+            name: currentUser.name || 'You',
+          },
+          content: fileName || 'Attached Document',
+          fileUrl,
+          fileType,
+          createdAt: new Date().toISOString(),
+        };
+
+        setMessages((prev) => [...prev, localMessage]);
+      }
+    } catch (err) {
+      console.error('File Upload failed:', err);
+      alert('File upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!text.trim()) return;
 
-    const messageData = { groupId, content: text };
+    socket.emit('typing', { groupId, isTyping: false });
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+    const messageData = { groupId, content: text, fileUrl: '', fileType: '' };
     socket.emit('send_message', messageData);
 
     const localMessage = {
       groupId,
       sender: {
-        _id: currentUser._id, // Mongo format kept consistent
+        _id: currentUser._id,
         name: currentUser.name || 'You',
       },
       content: text,
+      fileUrl: '',
+      fileType: '',
       createdAt: new Date().toISOString(),
     };
 
@@ -96,11 +188,10 @@ export default function GroupChat({ groupId, currentUser, token }) {
             </div>
           ) : messages.length === 0 ? (
             <div className="text-center text-slate-500 mt-12 text-sm">
-              No messages yet. Say hello! 👋
+              No messages yet. Say hello or share notes! 👋
             </div>
           ) : (
             messages.map((msg, idx) => {
-              // 3. Robust sender check (_id fallback for REST DB vs Socket payload)
               const senderId = msg.sender?._id || msg.sender?.id;
               const isMe = senderId === currentUser?._id;
 
@@ -110,7 +201,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
                   className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                 >
                   <div
-                    className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm backdrop-blur-sm ${
+                    className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm backdrop-blur-sm ${
                       isMe
                         ? 'bg-indigo-600 text-white rounded-br-none shadow-md shadow-indigo-600/20'
                         : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700'
@@ -121,26 +212,89 @@ export default function GroupChat({ groupId, currentUser, token }) {
                         {msg.sender?.name}
                       </p>
                     )}
-                    <p className="break-words">{msg.content}</p>
+
+                    {/* Conditional Rendering: Text vs File Attachment Card */}
+                    {msg.fileUrl ? (
+                      <div className="flex flex-col gap-1.5 my-1">
+                        <div className="flex items-center gap-2 bg-slate-900/60 p-2 rounded-lg border border-indigo-500/20">
+                          <span className="text-xl">
+                            {msg.fileType === 'pdf'
+                              ? '📄'
+                              : msg.fileType === 'image'
+                              ? '🖼️'
+                              : '📝'}
+                          </span>
+                          <span className="text-xs font-mono truncate max-w-[150px]">
+                            {msg.content || 'Attached File'}
+                          </span>
+                        </div>
+                        <a
+                          href={msg.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] underline text-cyan-300 hover:text-cyan-200 flex items-center gap-1 self-end font-semibold"
+                        >
+                          ⬇️ View / Download
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="break-words">{msg.content}</p>
+                    )}
                   </div>
                 </div>
               );
             })
           )}
+
+          <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Form */}
-        <form onSubmit={handleSendMessage} className="mt-4 flex gap-2">
+        {/* Typing Indicator Display */}
+        {typingUser && (
+          <div className="text-xs italic text-indigo-400 mt-2 flex items-center gap-1.5 animate-pulse">
+            <span>{typingUser} is typing...</span>
+            <span className="flex gap-1">
+              <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce"></span>
+              <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+              <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+            </span>
+          </div>
+        )}
+
+        {/* Input Form with Attachment Clip */}
+        <form onSubmit={handleSendMessage} className="mt-3 flex gap-2 items-center">
+          {/* Hidden File Input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+            className="hidden"
+          />
+
+          {/* Attachment Clip Button */}
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+            className="p-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 rounded-lg text-sm border border-slate-700 transition-all disabled:opacity-50"
+            title="Attach PDF or Notes"
+          >
+            {uploading ? '⏳' : '📎'}
+          </button>
+
           <input
             type="text"
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 bg-slate-800/80 border border-slate-700 text-white text-sm rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+            onChange={handleInputChange}
+            placeholder={uploading ? 'Uploading document...' : 'Type your message...'}
+            disabled={uploading}
+            className="flex-1 bg-slate-800/80 border border-slate-700 text-white text-sm rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all disabled:opacity-50"
           />
           <button
             type="submit"
-            className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-lg shadow-indigo-600/30"
+            disabled={uploading}
+            className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-lg shadow-indigo-600/30 disabled:opacity-50"
           >
             Send
           </button>

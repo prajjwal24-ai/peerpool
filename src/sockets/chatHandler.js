@@ -6,7 +6,7 @@ export const registerChatHanders = (io,socket)=>{
     });
 
     socket.on('send_message', async(data)=>{
-        const {groupId, content} = data;
+        const {groupId, content, fileUrl, fileType} = data;
         if (!content || !content.trim()) return;
         const payload = {
             groupId,
@@ -14,7 +14,9 @@ export const registerChatHanders = (io,socket)=>{
                 id : socket.user.id,
                 name: socket.user.name,
             },
-            content,
+            content: content || '',
+            fileUrl: fileUrl || null,
+            fileType: fileType || null,
             createdAt: new Date(),
         }
     })
@@ -23,7 +25,9 @@ export const registerChatHanders = (io,socket)=>{
         await Message.create({
             group: groupId,
             sender : socket.user.Id,
-            content,
+            content: content || '',
+            fileUrl: fileUrl || null,
+            fileType: fileType || null,
         })
     } catch(err){
         console.error('sorry But right now this text is not saved in db ', err);
