@@ -1,4 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import API from '../../services/api';
 import Galaxy from '../../components/ui/Galaxy';
@@ -8,6 +9,7 @@ import MagicBento from '../../components/ui/MagicBento';
 
 export default function Dashboard() {
     const { user } = useContext(AuthContext);
+    const navigate = useNavigate();
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,8 +33,16 @@ export default function Dashboard() {
     const handleJoinGroup = async (groupId) => {
         setJoinLoading(groupId);
         try {
-            await API.post(`/groups/${groupId}/join`);
-            await fetchGroups();
+            const res = await API.post(`/groups/${groupId}/join`);
+            
+            // 🔒 Agar Admin Approval Pending hai:
+            if (res.data.status === 'pending') {
+                alert('Join request sent to Admin!');
+                await fetchGroups();
+            } else {
+                alert('Successfully joined the group!');
+                navigate(`/group/${groupId}`);
+            }
         } catch (err) {
             alert(err.response?.data?.message || 'Join nahi ho paya!');
         } finally {
@@ -104,13 +114,11 @@ export default function Dashboard() {
                                 const isAdmin = (typeof group.admin === 'object' ? group.admin._id : group.admin) === user?._id;
 
                                 return (
-                                    /* 1. OUTMOST CARD WRAPPER - Yahan onClick lagaya hai */
                                     <div 
                                         key={group._id} 
                                         onClick={() => isMember && navigate(`/group/${group._id}`)}
                                         className={`flex flex-col justify-between h-full ${isMember ? 'cursor-pointer hover:border-cyan-400/80 transition-all' : ''}`}
                                     >
-                                        {/* 2. BENTO CARD KA PURA CONTENT (Title, Category, Skills, Buttons) */}
                                         <div>
                                             <div className="flex items-center justify-between mb-3">
                                                 <span className="text-[10px] uppercase tracking-wider font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-md">
@@ -154,7 +162,7 @@ export default function Dashboard() {
                                             ) : (
                                                 <button
                                                     onClick={(e) => {
-                                                        e.stopPropagation(); // Card navigation ko rokne ke liye taaki sirf join request trigger ho
+                                                        e.stopPropagation();
                                                         handleJoinGroup(group._id);
                                                     }}
                                                     disabled={joinLoading === group._id}
@@ -180,3 +188,4 @@ export default function Dashboard() {
         </div>
     );
 }
+

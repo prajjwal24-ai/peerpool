@@ -1,35 +1,44 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
-const groupSchema = new mongoose.Schema({
+const groupSchema = new mongoose.Schema(
+  {
     name: {
-        type: String,
-        required: true,
-        trim: true
+      type: String,
+      required: true,
+      trim: true,
     },
     description: {
-        type: String,
-        required: true
+      type: String,
+      default: '',
     },
     category: {
-        type: String,
-        default: 'General'
+      type: String,
+      default: 'GENERAL',
     },
-    skillsRequired: [
-        {
-            type: String 
-        }
-    ],
     admin: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    members: [
+      {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+      },
+    ],
+    
+    isPrivate: {
+      type: Boolean,
+      default: false, // Default Public
     },
-    members: [{
+    pendingRequests: [
+      {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-    }]
-}, { timestamps: true });
+        ref: 'User',
+      },
+    ],
+  },
+  { timestamps: true }
+);
 
-const Group = mongoose.models.Group || mongoose.model('Group', groupSchema);
-
-export default Group;
+export default mongoose.model('Group', groupSchema);

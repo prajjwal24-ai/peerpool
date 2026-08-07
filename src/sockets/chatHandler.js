@@ -1,4 +1,4 @@
-import Message from "../models/Message";
+import Message from "../models/Message.js";
 export const registerChatHanders = (io,socket)=>{
     socket.on('join_group', (groupId)=>{
         socket.join(groupId);
@@ -19,7 +19,7 @@ export const registerChatHanders = (io,socket)=>{
             fileType: fileType || null,
             createdAt: new Date(),
         }
-    })
+    
     socket.to(groupId).emit('receive-message', payload);
     try{
         await Message.create({
@@ -32,6 +32,7 @@ export const registerChatHanders = (io,socket)=>{
     } catch(err){
         console.error('sorry But right now this text is not saved in db ', err);
     }
+    })
     socket.on('leave-group',(groupId)=>{
         socket.leave(groupId);
         console.log(`User ${socket.user.id} left group room: ${groupId}`);

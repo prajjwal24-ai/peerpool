@@ -1,19 +1,21 @@
 import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { socket, connectSocket } from '../socket';
-
-import ElectricBorder from './react-bits/ElectricBorder';
+import ElectricBorder from './ui/ElectricBorder.jsx';
 
 export default function GroupChat({ groupId, currentUser, token }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false); // File upload state
+  const [uploading, setUploading] = useState(false);
 
   const [typingUser, setTypingUser] = useState('');
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
-  const fileInputRef = useRef(null); // File picker ref
+  const fileInputRef = useRef(null);
+
+  // Dynamic API Base URL
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
     if (token) {
@@ -24,7 +26,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
       try {
         setLoading(true);
         const response = await axios.get(
-          `http://localhost:5000/api/groups/${groupId}/messages`,
+          `${API_URL}/api/groups/${groupId}/messages`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -83,7 +85,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
     }
   };
 
-  // 👇 File Select/Upload Handler
+  // File Select/Upload Handler
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -94,7 +96,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
     try {
       setUploading(true);
       // 1. Upload file to Cloudinary via backend API
-      const res = await axios.post('http://localhost:5000/api/chat/upload', formData, {
+      const res = await axios.post(`${API_URL}/api/chat/upload`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
@@ -104,7 +106,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
       if (res.data.success) {
         const { fileUrl, fileType, fileName } = res.data;
 
-        // 2. Emit file via Socket
+        // 2. Emit file via Socket (Server broadcast karega to local array me auto add hoga)
         const messageData = {
           groupId,
           content: fileName || 'Attached Document',
@@ -112,21 +114,6 @@ export default function GroupChat({ groupId, currentUser, token }) {
           fileType,
         };
         socket.emit('send_message', messageData);
-
-        // 3. Local optimistic update
-        const localMessage = {
-          groupId,
-          sender: {
-            _id: currentUser._id,
-            name: currentUser.name || 'You',
-          },
-          content: fileName || 'Attached Document',
-          fileUrl,
-          fileType,
-          createdAt: new Date().toISOString(),
-        };
-
-        setMessages((prev) => [...prev, localMessage]);
       }
     } catch (err) {
       console.error('File Upload failed:', err);
@@ -147,19 +134,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
     const messageData = { groupId, content: text, fileUrl: '', fileType: '' };
     socket.emit('send_message', messageData);
 
-    const localMessage = {
-      groupId,
-      sender: {
-        _id: currentUser._id,
-        name: currentUser.name || 'You',
-      },
-      content: text,
-      fileUrl: '',
-      fileType: '',
-      createdAt: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, localMessage]);
+    // Local setMessages Yahan se hata diya hai taaki Duplicate message Na Bane
     setText('');
   };
 
@@ -209,7 +184,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
                   >
                     {!isMe && (
                       <p className="text-[10px] font-semibold text-indigo-400 mb-0.5">
-                        {msg.sender?.name}
+                        {msg.sender?.name || 'Peer'}
                       </p>
                     )}
 
@@ -234,7 +209,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
                           rel="noopener noreferrer"
                           className="text-[11px] underline text-cyan-300 hover:text-cyan-200 flex items-center gap-1 self-end font-semibold"
                         >
-                          ⬇️ View / Download
+                          ⬇ View / Download
                         </a>
                       </div>
                     ) : (
@@ -263,7 +238,6 @@ export default function GroupChat({ groupId, currentUser, token }) {
 
         {/* Input Form with Attachment Clip */}
         <form onSubmit={handleSendMessage} className="mt-3 flex gap-2 items-center">
-          {/* Hidden File Input */}
           <input
             type="file"
             ref={fileInputRef}
@@ -272,7 +246,6 @@ export default function GroupChat({ groupId, currentUser, token }) {
             className="hidden"
           />
 
-          {/* Attachment Clip Button */}
           <button
             type="button"
             disabled={uploading}

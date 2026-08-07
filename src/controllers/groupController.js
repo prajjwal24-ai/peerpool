@@ -65,43 +65,6 @@ export const getAllGroups = async (req, res) => {
     }
 };
 
-export const joinGroup = async (req, res) => {
-    try {
-        const groupId = req.params.id;
-        const userId = req.user._id;
-
-        const group = await Group.findById(groupId);
-
-        if (!group) {
-            return res.status(404).json({
-                success: false,
-                message: 'Group nahi mila!'
-            });
-        }
-
-        if (group.members.includes(userId)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Aap pehle se is group ke member ho!'
-            });
-        }
-
-        group.members.push(userId);
-        await group.save();
-
-        res.status(200).json({
-            success: true,
-            message: 'Group join kar liya! 🤝',
-            group
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Group join karne me error aaya',
-            error: error.message
-        });
-    }
-};
 
 export const getGroupById = async (req, res) => {
     try {
@@ -145,5 +108,97 @@ export const getGroupMessages = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+
+export const joinGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user._id;
+
+    const group = await Group.findById(groupId);
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+
+    // Already Member hai?
+    if (group.members.includes(userId)) {
+      return res.status(400).json({ success: false, message: 'Already a member' });
+    }
+
+    // 🔒 IF PRIVATE GROUP: Direct Join nahi hoga, Request jayegi
+    if (group.isPrivate) {
+      if (group.pendingRequests.includes(userId)) {
+        return res.status(400).json({ success: false, message: 'Request already sent!' });
+      }
+
+      group.pendingRequests.push(userId);
+      await group.save();
+
+      return res.status(200).json({
+        success: true,
+        status: 'pending',
+        message: 'Join request sent to Admin for approval!',
+      });
+    }
+
+    // 🌐 IF PUBLIC GROUP: Direct Join
+    group.members.push(userId);
+    await group.save();
+
+    res.status(200).json({
+      success: true,
+      status: 'joined',
+      message: 'Successfully joined group!',
+    });
+  } catch (error) {
+    console.error('Join Group Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+
+export const respondToRequest = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { targetUserId, action } = req.body; // action = 'accept' or 'reject'
+    const adminId = req.user._id;
+
+    const group = await Group.findById(groupId);
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+
+    // Security Check: Request sirf Admin hi handle kar sakta hai
+    if (group.admin.toString() !== adminId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only Admin can approve or reject requests!',
+      });
+    }
+
+    // Pending array se user ID hatao
+    group.pendingRequests = group.pendingRequests.filter(
+      (id) => id.toString() !== targetUserId
+    );
+
+    
+    if (action === 'accept') {
+      if (!group.members.includes(targetUserId)) {
+        group.members.push(targetUserId);
+      }
+    }
+
+    await group.save();
+
+    res.status(200).json({
+      success: true,
+      message: `User request ${action}ed successfully!`,
+    });
+  } catch (error) {
+    console.error('Respond Request Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

@@ -1,6 +1,6 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
-import { registerChatHandlers } from './chatHandler.js';
+import { registerChatHanders } from './chatHandler.js';
 
 export const initSocket = (httpServer)=>{
     const io = new Server(httpServer , {
