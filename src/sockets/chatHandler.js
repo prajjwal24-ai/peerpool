@@ -20,7 +20,7 @@ export const registerChatHanders = (io,socket)=>{
             createdAt: new Date(),
         }
     
-    socket.to(groupId).emit('receive-message', payload);
+    io.to(groupId).emit('receive-message', payload);
     try{
         await Message.create({
             group: groupId,

@@ -8,6 +8,7 @@ import authRoutes from './routes/authRoutes.js';
 import resourceRoutes from './routes/resourceRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
 import { initSocket } from './sockets/index.js';
+import chatRoutes from './routes/chatRoutes.js';
 
 dotenv.config(); 
 connectDB();
@@ -27,6 +28,7 @@ app.use('/api/pools', poolRoutes);
 app.use('/api/resources', resourceRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupRoutes);
+app.use('/api/chat', chatRoutes);
 
 app.get('/', (req, res) => {
     res.json({ success: true, message: 'PeerPool API is running smoothly!' });
