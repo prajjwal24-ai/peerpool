@@ -32,7 +32,7 @@ export default function App() {
                             ) : (
                                 <Register onSwitch={() => setIsLoginView(true)} />
                             )
-                        } 
+                        }
                     />
                     {/* Kisi bhi random path par ho, login par bhejo */}
                     <Route path="*" element={<Navigate to="/login" replace />} />
@@ -49,7 +49,7 @@ export default function App() {
                         } 
                     />
                     <Route 
-                        path="/group/:id" 
+                        path="/group/:groupId" 
                         element={
                             <ProtectedRoute>
                                 <GroupPage />

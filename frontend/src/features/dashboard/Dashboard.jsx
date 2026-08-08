@@ -35,16 +35,22 @@ export default function Dashboard() {
         try {
             const res = await API.post(`/groups/${groupId}/join`);
             
-            // 🔒 Agar Admin Approval Pending hai:
             if (res.data.status === 'pending') {
-                alert('Join request sent to Admin!');
+                alert('🔒 Admin approval required. Join request sent!');
                 await fetchGroups();
             } else {
-                alert('Successfully joined the group!');
+                // Direct Join hote hi Chat Room me bhejo
                 navigate(`/group/${groupId}`);
             }
         } catch (err) {
-            alert(err.response?.data?.message || 'Join nahi ho paya!');
+            const errorMsg = err.response?.data?.message || '';
+            
+            // Agar user PEHLE SE MEMBER HAI, toh alert mat dikhao — DIRECT CHAT ME BHEJ DO!
+            if (errorMsg.toLowerCase().includes('already') || err.response?.status === 400) {
+                navigate(`/group/${groupId}`);
+            } else {
+                alert(errorMsg || 'Group join karne me issue aaya. Backend connection re-check karein.');
+            }
         } finally {
             setJoinLoading(null);
         }
@@ -117,7 +123,9 @@ export default function Dashboard() {
                                     <div 
                                         key={group._id} 
                                         onClick={() => isMember && navigate(`/group/${group._id}`)}
-                                        className={`flex flex-col justify-between h-full ${isMember ? 'cursor-pointer hover:border-cyan-400/80 transition-all' : ''}`}
+                                        className={`flex flex-col justify-between h-full p-1 ${
+                                            isMember ? 'cursor-pointer hover:border-cyan-400/80 transition-all' : ''
+                                        }`}
                                     >
                                         <div>
                                             <div className="flex items-center justify-between mb-3">
@@ -155,10 +163,16 @@ export default function Dashboard() {
                                             </span>
 
                                             {isMember ? (
-                                                <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold rounded-lg flex items-center gap-1">
-                                                    {isAdmin ? '👑 Admin' : '✓ Joined'}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigate(`/group/${group._id}`);
+                                                    }}
+                                                    className="px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-lg flex items-center gap-1 transition-all"
+                                                >
+                                                    {isAdmin ? '👑 Admin' : '💬 Open Chat'}
                                                     <span className="text-[10px] opacity-75">➔</span>
-                                                </span>
+                                                </button>
                                             ) : (
                                                 <button
                                                     onClick={(e) => {
@@ -188,4 +202,3 @@ export default function Dashboard() {
         </div>
     );
 }
-
