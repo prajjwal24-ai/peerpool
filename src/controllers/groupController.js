@@ -114,47 +114,34 @@ export const getGroupMessages = async (req, res, next) => {
 export const joinGroup = async (req, res) => {
   try {
     const { groupId } = req.params;
-    const userId = req.user._id;
+    const userId = req.user._id || req.user.id;
 
     const group = await Group.findById(groupId);
-
     if (!group) {
-      return res.status(404).json({ success: false, message: 'Group not found' });
+      return res.status(404).json({ message: 'Group not found' });
     }
 
-    // Already Member hai?
-    if (group.members.includes(userId)) {
-      return res.status(400).json({ success: false, message: 'Already a member' });
+    // Check if already a member safely
+    const isMember = group.members.some(
+      (m) => m.toString() === userId.toString()
+    );
+
+    if (isMember) {
+      return res.status(400).json({ message: 'You are already a member of this group' });
     }
 
-    // 🔒 IF PRIVATE GROUP: Direct Join nahi hoga, Request jayegi
-    if (group.isPrivate) {
-      if (group.pendingRequests.includes(userId)) {
-        return res.status(400).json({ success: false, message: 'Request already sent!' });
-      }
-
-      group.pendingRequests.push(userId);
-      await group.save();
-
-      return res.status(200).json({
-        success: true,
-        status: 'pending',
-        message: 'Join request sent to Admin for approval!',
-      });
-    }
-
-    // 🌐 IF PUBLIC GROUP: Direct Join
+    // Add user to group
     group.members.push(userId);
     await group.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      status: 'joined',
-      message: 'Successfully joined group!',
+      message: 'Joined group successfully',
+      group,
     });
   } catch (error) {
-    console.error('Join Group Error:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    console.error('Error joining group:', error);
+    return res.status(500).json({ message: 'Server Error: ' + error.message });
   }
 };
 

@@ -14,14 +14,27 @@ export default function GroupChat({ groupId, currentUser, token }) {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Dynamic API Base URL
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
-    if (token) {
-      connectSocket(token);
+    if (!groupId || !token) return;
+
+    // 1. Connect Socket safely with Auth
+    connectSocket(token);
+
+    // Function to join room once socket is guaranteed connected
+    const joinRoom = () => {
+      console.log('⚡ Socket connected! Joining room:', groupId);
+      socket.emit('join_group', groupId);
+    };
+
+    if (socket.connected) {
+      joinRoom();
+    } else {
+      socket.on('connect', joinRoom);
     }
 
+    // 2. Fetch Initial History
     const fetchChatHistory = async () => {
       try {
         setLoading(true);
@@ -33,7 +46,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
         );
 
         if (response.data.success) {
-          setMessages(response.data.data);
+          setMessages(response.data.data || response.data.messages || []);
         }
       } catch (error) {
         console.error('Error fetching chat history:', error);
@@ -44,10 +57,11 @@ export default function GroupChat({ groupId, currentUser, token }) {
 
     fetchChatHistory();
 
-    socket.emit('join_group', groupId);
-
+    // 3. Socket Listeners
     const handleReceiveMessage = (newMessage) => {
-      setMessages((prevMessages) => [...prevMessages, newMessage]);
+      console.log('📩 New Message Received on Client:', newMessage);
+      if (!newMessage) return;
+      setMessages((prev) => [...prev, newMessage]);
     };
 
     const handleUserTyping = ({ userName, isTyping }) => {
@@ -57,14 +71,18 @@ export default function GroupChat({ groupId, currentUser, token }) {
     socket.on('receive_message', handleReceiveMessage);
     socket.on('user_typing', handleUserTyping);
 
+    // Cleanup logic
     return () => {
+      socket.off('connect', joinRoom);
       socket.off('receive_message', handleReceiveMessage);
       socket.off('user_typing', handleUserTyping);
-      socket.emit('leave_group', groupId);
+      if (socket.connected) {
+        socket.emit('leave_group', groupId);
+      }
     };
   }, [groupId, token]);
 
-  // Auto Scroll to bottom
+  // Auto Scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typingUser]);
@@ -85,7 +103,6 @@ export default function GroupChat({ groupId, currentUser, token }) {
     }
   };
 
-  // File Select/Upload Handler
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -95,7 +112,6 @@ export default function GroupChat({ groupId, currentUser, token }) {
 
     try {
       setUploading(true);
-      // 1. Upload file to Cloudinary via backend API
       const res = await axios.post(`${API_URL}/api/chat/upload`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -106,18 +122,18 @@ export default function GroupChat({ groupId, currentUser, token }) {
       if (res.data.success) {
         const { fileUrl, fileType, fileName } = res.data;
 
-        // 2. Emit file via Socket (Server broadcast karega to local array me auto add hoga)
         const messageData = {
           groupId,
-          content: fileName || 'Attached Document',
-          fileUrl,
-          fileType,
+          content: fileName || file.name || 'Attached File',
+          fileUrl: fileUrl,
+          fileType: fileType || 'document',
         };
+
         socket.emit('send_message', messageData);
       }
     } catch (err) {
       console.error('File Upload failed:', err);
-      alert('File upload failed. Please try again.');
+      alert(err.response?.data?.message || 'File upload failed.');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -132,147 +148,153 @@ export default function GroupChat({ groupId, currentUser, token }) {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     const messageData = { groupId, content: text, fileUrl: '', fileType: '' };
-    socket.emit('send_message', messageData);
 
-    // Local setMessages Yahan se hata diya hai taaki Duplicate message Na Bane
+    console.log('📤 Emitting send_message:', messageData);
+    socket.emit('send_message', messageData);
+    setMessages((prev) => [...prev, messageData]);
     setText('');
   };
 
   return (
-    <ElectricBorder color="#6366f1" speed={1.5}>
-      <div className="flex flex-col h-[500px] w-full max-w-2xl bg-slate-900/90 backdrop-blur-md rounded-xl p-4 shadow-xl border border-indigo-500/30">
-        {/* Header */}
-        <div className="border-b border-slate-800 pb-3 mb-4 flex justify-between items-center">
-          <div>
-            <h3 className="text-lg font-bold text-white tracking-wide">
-              PeerPool Group Chat
-            </h3>
-            <p className="text-xs text-indigo-400 font-mono">ID: {groupId}</p>
-          </div>
-          <span className="flex h-2 w-2 relative">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-        </div>
-
-        {/* Message Area */}
-        <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-          {loading ? (
-            <div className="text-center text-indigo-400/80 mt-12 text-sm font-medium animate-pulse">
-              Loading chat history... ⚡
+    <div className="w-full flex justify-center">
+      <ElectricBorder color="#6366f1" speed={1.5} className="w-full max-w-4xl">
+        <div className="flex flex-col h-[520px] w-full bg-slate-900/90 backdrop-blur-md rounded-xl p-5 shadow-2xl border border-indigo-500/30">
+          
+          {/* Header */}
+          <div className="border-b border-slate-800/80 pb-3 mb-3 flex justify-between items-center shrink-0">
+            <div>
+              <h3 className="text-lg font-bold text-white tracking-wide">
+                PeerPool Group Chat
+              </h3>
+              <p className="text-xs text-indigo-400 font-mono">ID: {groupId}</p>
             </div>
-          ) : messages.length === 0 ? (
-            <div className="text-center text-slate-500 mt-12 text-sm">
-              No messages yet. Say hello or share notes! 👋
-            </div>
-          ) : (
-            messages.map((msg, idx) => {
-              const senderId = msg.sender?._id || msg.sender?.id;
-              const isMe = senderId === currentUser?._id;
-
-              return (
-                <div
-                  key={msg._id || idx}
-                  className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                >
-                  <div
-                    className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm backdrop-blur-sm ${
-                      isMe
-                        ? 'bg-indigo-600 text-white rounded-br-none shadow-md shadow-indigo-600/20'
-                        : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700'
-                    }`}
-                  >
-                    {!isMe && (
-                      <p className="text-[10px] font-semibold text-indigo-400 mb-0.5">
-                        {msg.sender?.name || 'Peer'}
-                      </p>
-                    )}
-
-                    {/* Conditional Rendering: Text vs File Attachment Card */}
-                    {msg.fileUrl ? (
-                      <div className="flex flex-col gap-1.5 my-1">
-                        <div className="flex items-center gap-2 bg-slate-900/60 p-2 rounded-lg border border-indigo-500/20">
-                          <span className="text-xl">
-                            {msg.fileType === 'pdf'
-                              ? '📄'
-                              : msg.fileType === 'image'
-                              ? '🖼️'
-                              : '📝'}
-                          </span>
-                          <span className="text-xs font-mono truncate max-w-[150px]">
-                            {msg.content || 'Attached File'}
-                          </span>
-                        </div>
-                        <a
-                          href={msg.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[11px] underline text-cyan-300 hover:text-cyan-200 flex items-center gap-1 self-end font-semibold"
-                        >
-                          ⬇ View / Download
-                        </a>
-                      </div>
-                    ) : (
-                      <p className="break-words">{msg.content}</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Typing Indicator Display */}
-        {typingUser && (
-          <div className="text-xs italic text-indigo-400 mt-2 flex items-center gap-1.5 animate-pulse">
-            <span>{typingUser} is typing...</span>
-            <span className="flex gap-1">
-              <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce"></span>
-              <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-              <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
           </div>
-        )}
 
-        {/* Input Form with Attachment Clip */}
-        <form onSubmit={handleSendMessage} className="mt-3 flex gap-2 items-center">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-            className="hidden"
-          />
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto space-y-3 pr-2 my-2 custom-scrollbar flex flex-col">
+            {loading ? (
+              <div className="m-auto text-indigo-400/80 text-sm font-medium animate-pulse">
+                Loading chat history... ⚡
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="m-auto text-slate-400 text-sm font-medium">
+                No messages yet. Say hello or share notes! 👋
+              </div>
+            ) : (
+              messages.map((msg, idx) => {
+                const senderId = typeof msg.sender === 'object' ? (msg.sender?._id || msg.sender?.id) : msg.sender;
+                const currentUserId = currentUser?._id || currentUser?.id;
+                const isMe = String(senderId) === String(currentUserId);
 
-          <button
-            type="button"
-            disabled={uploading}
-            onClick={() => fileInputRef.current?.click()}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 rounded-lg text-sm border border-slate-700 transition-all disabled:opacity-50"
-            title="Attach PDF or Notes"
-          >
-            {uploading ? '⏳' : '📎'}
-          </button>
+                return (
+                  <div
+                    key={msg._id || idx}
+                    className={`flex flex-col w-full ${isMe ? 'items-end' : 'items-start'}`}
+                  >
+                    <div
+                      className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm backdrop-blur-sm ${
+                        isMe
+                          ? 'bg-indigo-600 text-white rounded-br-none shadow-md shadow-indigo-600/20'
+                          : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700'
+                      }`}
+                    >
+                      {!isMe && (
+                        <p className="text-[10px] font-semibold text-indigo-400 mb-1">
+                          {typeof msg.sender === 'object' ? msg.sender?.name : 'Peer'}
+                        </p>
+                      )}
 
-          <input
-            type="text"
-            value={text}
-            onChange={handleInputChange}
-            placeholder={uploading ? 'Uploading document...' : 'Type your message...'}
-            disabled={uploading}
-            className="flex-1 bg-slate-800/80 border border-slate-700 text-white text-sm rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={uploading}
-            className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-lg shadow-indigo-600/30 disabled:opacity-50"
-          >
-            Send
-          </button>
-        </form>
-      </div>
-    </ElectricBorder>
+                      {msg.fileUrl ? (
+                        <div className="flex flex-col gap-1.5 my-1">
+                          <div className="flex items-center gap-2 bg-slate-900/80 p-2.5 rounded-lg border border-indigo-500/30">
+                            <span className="text-xl">
+                              {msg.fileType === 'pdf'
+                                ? '📄'
+                                : msg.fileType === 'image'
+                                ? '🖼️'
+                                : '📝'}
+                            </span>
+                            <span className="text-xs font-mono truncate max-w-[180px] text-slate-200">
+                              {msg.content || 'Attached Document'}
+                            </span>
+                          </div>
+                          <a
+                            href={msg.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] underline text-cyan-300 hover:text-cyan-200 flex items-center gap-1 self-end font-semibold mt-0.5"
+                          >
+                            ⬇ View / Download
+                          </a>
+                        </div>
+                      ) : (
+                        <p className="break-words text-sm leading-relaxed">{msg.content}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Typing Indicator */}
+          {typingUser && (
+            <div className="text-xs italic text-indigo-400 mb-2 flex items-center gap-1.5 animate-pulse shrink-0">
+              <span>{typingUser} is typing...</span>
+              <span className="flex gap-1">
+                <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce"></span>
+                <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+              </span>
+            </div>
+          )}
+
+          {/* Bottom Input Section */}
+          <form onSubmit={handleSendMessage} className="mt-auto flex gap-2 items-center shrink-0">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              className="hidden"
+            />
+
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 rounded-xl text-sm border border-slate-700 transition-all disabled:opacity-50"
+              title="Attach File"
+            >
+              {uploading ? '⏳' : '📎'}
+            </button>
+
+            <input
+              type="text"
+              value={text}
+              onChange={handleInputChange}
+              placeholder={uploading ? 'Uploading file...' : 'Type your message...'}
+              disabled={uploading}
+              className="flex-1 bg-slate-800/90 border border-slate-700 text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all disabled:opacity-50"
+            />
+
+            <button
+              type="submit"
+              disabled={uploading}
+              className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-indigo-600/30 disabled:opacity-50"
+            >
+              Send
+            </button>
+          </form>
+
+        </div>
+      </ElectricBorder>
+    </div>
   );
 }

@@ -30,26 +30,28 @@ export default function Dashboard() {
         fetchGroups();
     }, []);
 
+    // FIX 1: Cleaned Function Signature (Passing groupId cleanly)
     const handleJoinGroup = async (groupId) => {
+        if (!groupId) return;
+
         setJoinLoading(groupId);
         try {
             const res = await API.post(`/groups/${groupId}/join`);
             
             if (res.data.status === 'pending') {
-                alert('🔒 Admin approval required. Join request sent!');
+                alert('Admin approval required. Join request sent!');
                 await fetchGroups();
             } else {
-                // Direct Join hote hi Chat Room me bhejo
                 navigate(`/group/${groupId}`);
             }
         } catch (err) {
             const errorMsg = err.response?.data?.message || '';
             
-            // Agar user PEHLE SE MEMBER HAI, toh alert mat dikhao — DIRECT CHAT ME BHEJ DO!
-            if (errorMsg.toLowerCase().includes('already') || err.response?.status === 400) {
+            // FIX 2: Strict Already Member Check
+            if (errorMsg.toLowerCase().includes('already') || errorMsg.toLowerCase().includes('member')) {
                 navigate(`/group/${groupId}`);
             } else {
-                alert(errorMsg || 'Group join karne me issue aaya. Backend connection re-check karein.');
+                alert(errorMsg || 'Group join karne me issue aaya.');
             }
         } finally {
             setJoinLoading(null);
@@ -114,10 +116,10 @@ export default function Dashboard() {
                     ) : (
                         <MagicBento glowColor="6, 182, 212">
                             {groups.map((group) => {
-                                const isMember = group.members.some(
+                                const isMember = group.members?.some(
                                     (m) => (typeof m === 'object' ? m._id : m) === user?._id
                                 );
-                                const isAdmin = (typeof group.admin === 'object' ? group.admin._id : group.admin) === user?._id;
+                                const isAdmin = (typeof group.admin === 'object' ? group.admin?._id : group.admin) === user?._id;
 
                                 return (
                                     <div 
@@ -177,10 +179,11 @@ export default function Dashboard() {
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
+                                                        // FIX 3: Correct single argument call
                                                         handleJoinGroup(group._id);
                                                     }}
                                                     disabled={joinLoading === group._id}
-                                                    className="px-4 py-1.5 bg-slate-800 hover:bg-cyan-500 hover:text-black text-cyan-400 border border-cyan-500/30 text-xs font-bold rounded-lg transition-all"
+                                                    className="px-4 py-1.5 bg-slate-800 hover:bg-cyan-500 hover:text-black text-cyan-400 border border-cyan-500/30 text-xs font-bold rounded-lg transition-all disabled:opacity-50"
                                                 >
                                                     {joinLoading === group._id ? 'Joining...' : 'Join Group'}
                                                 </button>

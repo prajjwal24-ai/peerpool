@@ -1,48 +1,62 @@
 import Message from "../models/Message.js";
-export const registerChatHanders = (io,socket)=>{
-    socket.on('join_group', (groupId)=>{
+
+export const registerChatHandlers = (io, socket) => {
+    // 1. Join Group
+    socket.on('join_group', (groupId) => {
+        if (!groupId) return;
         socket.join(groupId);
-        console.log(`User ${socket.user.id} joined group room : ${groupId}`)
+        console.log(`User ${socket.user?.name || socket.user?.id} joined group room : ${groupId}`);
     });
 
-    socket.on('send_message', async(data)=>{
-        const {groupId, content, fileUrl, fileType} = data;
-        if (!content || !content.trim()) return;
+    // 2. Send Message (Text & Files)
+    socket.on('send_message', async (data) => {
+        const { groupId, content, fileUrl, fileType } = data;
+        if ((!content || !content.trim()) && !fileUrl) {
+            return;
+        }
+
         const payload = {
             groupId,
-            sender:{
-                id : socket.user.id,
-                name: socket.user.name,
+            sender: {
+                _id: socket.user?.id || socket.user?._id,
+                id: socket.user?.id || socket.user?._id,
+                name: socket.user?.name || 'Peer',
             },
             content: content || '',
             fileUrl: fileUrl || null,
             fileType: fileType || null,
-            createdAt: new Date(),
+            createdAt: new Date().toISOString(),
+        };
+
+        // FIXED 2: Underscore wala event emit karo taaki frontend receive kar sake!
+        io.to(groupId).emit('receive_message', payload);
+
+        // Save to Database
+        try {
+            await Message.create({
+                group: groupId,
+                sender: socket.user?.id || socket.user?._id, // FIXED 3: Corrected socket.user.Id typo
+                content: content || '',
+                fileUrl: fileUrl || null,
+                fileType: fileType || null,
+            });
+        } catch (err) {
+            console.error('sorry But right now this text is not saved in db ', err);
         }
-    
-    io.to(groupId).emit('receive-message', payload);
-    try{
-        await Message.create({
-            group: groupId,
-            sender : socket.user.Id,
-            content: content || '',
-            fileUrl: fileUrl || null,
-            fileType: fileType || null,
-        })
-    } catch(err){
-        console.error('sorry But right now this text is not saved in db ', err);
-    }
-    })
-    socket.on('leave-group',(groupId)=>{
+    });
+
+    // 3. Leave Group
+    socket.on('leave_group', (groupId) => {
         socket.leave(groupId);
-        console.log(`User ${socket.user.id} left group room: ${groupId}`);
-    })
+        console.log(`User ${socket.user?.id} left group room: ${groupId}`);
+    });
+
+    // 4. Typing Indicator
     socket.on('typing', ({ groupId, isTyping }) => {
-        
-    socket.to(groupId).emit('user_typing', {
-    userId: socket.user.id,
-    userName: socket.user.name,
-    isTyping,
-  });
-});
-}
+        socket.to(groupId).emit('user_typing', {
+            userId: socket.user?.id,
+            userName: socket.user?.name,
+            isTyping,
+        });
+    });
+};

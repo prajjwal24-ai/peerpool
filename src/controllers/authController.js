@@ -32,9 +32,9 @@ export const registerUser = async (req, res) => {
             password: hashedPassword,
         });
 
-        // Generate JWT Token
+        // 💡 FIX: JWT Payload me 'name' aur 'email' add kar diya
         const token = jwt.sign(
-            { id: user._id },
+            { id: user._id, name: user.name, email: user.email },
             process.env.JWT_SECRET || 'peerpool_secret_123',
             { expiresIn: '7d' }
         );
@@ -53,7 +53,7 @@ export const registerUser = async (req, res) => {
     }
 };
 
-//  LOGIN CONTROLLER
+// LOGIN CONTROLLER
 export const loginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -72,8 +72,9 @@ export const loginUser = async (req, res) => {
             return res.status(400).json({ message: 'Invalid email or password' });
         }
 
+        // 💡 FIX: JWT Payload me 'name' aur 'email' add kar diya
         const token = jwt.sign(
-            { id: user._id },
+            { id: user._id, name: user.name, email: user.email },
             process.env.JWT_SECRET || 'peerpool_secret_123',
             { expiresIn: '7d' }
         );
