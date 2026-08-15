@@ -10,40 +10,35 @@ export const registerChatHandlers = (io, socket) => {
 
     // 2. Send Message (Text & Files)
     socket.on('send_message', async (data) => {
+    try {
         const { groupId, content, fileUrl, fileType } = data;
+
+        // Content ya file me se koi ek hona zaroori hai
         if ((!content || !content.trim()) && !fileUrl) {
             return;
         }
 
-        const payload = {
-            groupId,
-            sender: {
-                _id: socket.user?.id || socket.user?._id,
-                id: socket.user?.id || socket.user?._id,
-                name: socket.user?.name || 'Peer',
-            },
-            content: content || '',
+        const senderId = socket.user?.id || socket.user?._id;
+
+        // 1. Pehle Database me Message create karo
+        const newMessage = await Message.create({
+            group: groupId,
+            sender: senderId,
+            content: content || (fileUrl ? 'Attached File' : ''),
             fileUrl: fileUrl || null,
             fileType: fileType || null,
-            createdAt: new Date().toISOString(),
-        };
+        });
 
-        // FIXED 2: Underscore wala event emit karo taaki frontend receive kar sake!
-        io.to(groupId).emit('receive_message', payload);
+        // 2. User details populate karo (name, email, avatar)
+        await newMessage.populate('sender', 'name email avatar');
 
-        // Save to Database
-        try {
-            await Message.create({
-                group: groupId,
-                sender: socket.user?.id || socket.user?._id, // FIXED 3: Corrected socket.user.Id typo
-                content: content || '',
-                fileUrl: fileUrl || null,
-                fileType: fileType || null,
-            });
-        } catch (err) {
-            console.error('sorry But right now this text is not saved in db ', err);
-        }
-    });
+        // 3. Complete saved + populated message room me broadcast karo
+        io.to(groupId.toString()).emit('receive_message', newMessage);
+
+    } catch (err) {
+        console.error('Error saving or emitting socket message:', err);
+    }
+});
 
     // 3. Leave Group
     socket.on('leave_group', (groupId) => {

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { socket, connectSocket } from '../socket';
+import SharedFilesModal from "./SharedFilesModel.jsx";
 import ElectricBorder from './ui/ElectricBorder.jsx';
 
 export default function GroupChat({ groupId, currentUser, token }) {
@@ -8,7 +9,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-
+  const [showFilesModal, setShowFilesModal] = useState(false);
   const [typingUser, setTypingUser] = useState('');
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -22,7 +23,6 @@ export default function GroupChat({ groupId, currentUser, token }) {
     // 1. Connect Socket safely with Auth
     connectSocket(token);
 
-    // Function to join room once socket is guaranteed connected
     const joinRoom = () => {
       console.log('⚡ Socket connected! Joining room:', groupId);
       socket.emit('join_group', groupId);
@@ -61,7 +61,16 @@ export default function GroupChat({ groupId, currentUser, token }) {
     const handleReceiveMessage = (newMessage) => {
       console.log('📩 New Message Received on Client:', newMessage);
       if (!newMessage) return;
-      setMessages((prev) => [...prev, newMessage]);
+      setMessages((prevMessages) => {
+        // Prevent duplicate rendering
+        const exists = prevMessages.some(
+          (m) =>
+            (m._id && newMessage._id && m._id === newMessage._id) ||
+            (m.content === newMessage.content && m.createdAt === newMessage.createdAt)
+        );
+        if (exists) return prevMessages;
+        return [...prevMessages, newMessage];
+      });
     };
 
     const handleUserTyping = ({ userName, isTyping }) => {
@@ -151,9 +160,10 @@ export default function GroupChat({ groupId, currentUser, token }) {
 
     console.log('📤 Emitting send_message:', messageData);
     socket.emit('send_message', messageData);
-    setMessages((prev) => [...prev, messageData]);
     setText('');
   };
+
+  const uploadedFilesCount = messages.filter((m) => Boolean(m.fileUrl)).length;
 
   return (
     <div className="w-full flex justify-center">
@@ -168,10 +178,24 @@ export default function GroupChat({ groupId, currentUser, token }) {
               </h3>
               <p className="text-xs text-indigo-400 font-mono">ID: {groupId}</p>
             </div>
-            <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
+
+            {/* Top Right Action Area */}
+            <div className="flex items-center gap-3">
+              {/* 📁 Shared Files Folder Button */}
+              <button
+                type="button"
+                onClick={() => setShowFilesModal(true)}
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-700 hover:border-indigo-500/50 transition active:scale-95 shadow-sm"
+                title="View All Uploaded Files"
+              >
+                <span>📁</span> Files ({uploadedFilesCount})
+              </button>
+
+              <span className="flex h-2.5 w-2.5 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+            </div>
           </div>
 
           {/* Messages Area */}
@@ -204,7 +228,9 @@ export default function GroupChat({ groupId, currentUser, token }) {
                     >
                       {!isMe && (
                         <p className="text-[10px] font-semibold text-indigo-400 mb-1">
-                          {typeof msg.sender === 'object' ? msg.sender?.name : 'Peer'}
+                          {typeof msg.sender === 'object' && msg.sender?.name
+                            ? msg.sender.name
+                            : 'Peer'}
                         </p>
                       )}
 
@@ -295,6 +321,14 @@ export default function GroupChat({ groupId, currentUser, token }) {
 
         </div>
       </ElectricBorder>
+
+      {/* Shared Files Modal Mounted */}
+      <SharedFilesModal
+        isOpen={showFilesModal}
+        onClose={() => setShowFilesModal(false)}
+        messages={messages}
+        currentUser={currentUser}
+      />
     </div>
   );
 }
