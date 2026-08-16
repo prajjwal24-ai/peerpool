@@ -2,47 +2,50 @@ import Group from '../models/Group.js';
 import Message from '../models/Message.js';
 
 export const createGroup = async (req, res) => {
-    try {
-        const { name, description, category, skillsRequired } = req.body;
+  try {
+    const { name, description, category, skillsRequired, isPrivate, joinCode } = req.body;
 
-        if (!name || !description) {
-            return res.status(400).json({
-                success: false,
-                message: 'Name and description are required!'
-            });
-        }
-
-        let formattedSkills = [];
-        if (skillsRequired) {
-            formattedSkills = Array.isArray(skillsRequired) 
-                ? skillsRequired 
-                : skillsRequired.split(',').map(skill => skill.trim());
-        }
-
-        const newGroup = new Group({
-            name, 
-            description, 
-            category: category || 'General', 
-            skillsRequired: formattedSkills,
-            admin: req.user._id,
-            members: [req.user._id]
-        });
-
-        await newGroup.save();
-
-        res.status(201).json({
-            success: true,
-            message: 'Group successfully ban gaya! 🎉',
-            group: newGroup
-        });
-    } catch (error) {
-        console.error("Create Group Error:", error);
-        res.status(500).json({
-            success: false,
-            message: 'Group banane me error aaya',
-            error: error.message
-        });
+    if (!name || !description) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name and description are required!',
+      });
     }
+
+    let formattedSkills = [];
+    if (skillsRequired) {
+      formattedSkills = Array.isArray(skillsRequired)
+        ? skillsRequired
+        : skillsRequired.split(',').map((s) => s.trim());
+    }
+
+    const newGroup = new Group({
+      name,
+      description,
+      category: category || 'General',
+      skillsRequired: formattedSkills,
+      isPrivate: Boolean(isPrivate),
+      joinCode: isPrivate ? joinCode || Math.random().toString(36).substring(2, 8).toUpperCase() : null,
+      admin: req.user._id,
+      members: [req.user._id],
+      pendingRequests: [],
+    });
+
+    await newGroup.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Group successfully ban gaya! 🎉',
+      group: newGroup,
+    });
+  } catch (error) {
+    console.error('Create Group Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Group banane me error aaya',
+      error: error.message,
+    });
+  }
 };
 
 export const getAllGroups = async (req, res) => {
@@ -114,34 +117,61 @@ export const getGroupMessages = async (req, res, next) => {
 export const joinGroup = async (req, res) => {
   try {
     const { groupId } = req.params;
+    const { joinCode } = req.body; // user code enter kar sakta hai
     const userId = req.user._id || req.user.id;
 
     const group = await Group.findById(groupId);
     if (!group) {
-      return res.status(404).json({ message: 'Group not found' });
+      return res.status(404).json({ success: false, message: 'Group not found' });
     }
 
-    // Check if already a member safely
-    const isMember = group.members.some(
-      (m) => m.toString() === userId.toString()
-    );
-
+    // Check if already a member
+    const isMember = group.members.some((m) => m.toString() === userId.toString());
     if (isMember) {
-      return res.status(400).json({ message: 'You are already a member of this group' });
+      return res.status(400).json({ success: false, message: 'You are already a member of this group' });
     }
 
-    // Add user to group
+    // 🔒 PRIVATE GROUP LOGIC
+    if (group.isPrivate) {
+      // Case A: Agar user ne correct joinCode diya hai toh seedha add kar do
+      if (joinCode && group.joinCode && joinCode.trim().toUpperCase() === group.joinCode.toUpperCase()) {
+        group.members.push(userId);
+        await group.save();
+        return res.status(200).json({
+          success: true,
+          message: 'Correct Code! Joined private group successfully 🎉',
+          group,
+        });
+      }
+
+      // Case B: Agar Code nahi hai, toh Admin ke liye Request create karo
+      const alreadyRequested = group.pendingRequests?.some((id) => id.toString() === userId.toString());
+      if (alreadyRequested) {
+        return res.status(400).json({ success: false, message: 'Join request already pending with Admin.' });
+      }
+
+      group.pendingRequests.push(userId);
+      await group.save();
+
+      return res.status(200).json({
+        success: true,
+        isPending: true,
+        message: 'This is a private group. Join request sent to Admin for approval! ⏳',
+      });
+    }
+
+    // 🌐 PUBLIC GROUP: Seedha join karao
     group.members.push(userId);
     await group.save();
 
     return res.status(200).json({
       success: true,
-      message: 'Joined group successfully',
+      message: 'Joined group successfully! 🎉',
       group,
     });
   } catch (error) {
     console.error('Error joining group:', error);
-    return res.status(500).json({ message: 'Server Error: ' + error.message });
+    return res.status(500).json({ success: false, message: 'Server Error: ' + error.message });
   }
 };
 

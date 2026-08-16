@@ -30,24 +30,32 @@ export default function Dashboard() {
         fetchGroups();
     }, []);
 
-    // FIX 1: Cleaned Function Signature (Passing groupId cleanly)
-    const handleJoinGroup = async (groupId) => {
-        if (!groupId) return;
+    const handleJoinGroup = async (group) => {
+        if (!group || !group._id) return;
+        const groupId = group._id;
+
+        let joinCode = null;
+        if (group.isPrivate) {
+            const enteredCode = window.prompt(
+                '🔒 This is a Private Group.\nEnter secret passcode (or leave blank to send Join Request to Admin):'
+            );
+            if (enteredCode === null) return; // User canceled prompt
+            joinCode = enteredCode.trim() || null;
+        }
 
         setJoinLoading(groupId);
         try {
-            const res = await API.post(`/groups/${groupId}/join`);
-            
-            if (res.data.status === 'pending') {
-                alert('Admin approval required. Join request sent!');
+            const res = await API.post(`/groups/${groupId}/join`, { joinCode });
+
+            if (res.data.isPending || res.data.status === 'pending') {
+                alert('⏳ ' + (res.data.message || 'Join request sent to Admin for approval!'));
                 await fetchGroups();
             } else {
                 navigate(`/group/${groupId}`);
             }
         } catch (err) {
             const errorMsg = err.response?.data?.message || '';
-            
-            // FIX 2: Strict Already Member Check
+
             if (errorMsg.toLowerCase().includes('already') || errorMsg.toLowerCase().includes('member')) {
                 navigate(`/group/${groupId}`);
             } else {
@@ -116,10 +124,14 @@ export default function Dashboard() {
                     ) : (
                         <MagicBento glowColor="6, 182, 212">
                             {groups.map((group) => {
+                                const currentUserId = user?._id || user?.id;
                                 const isMember = group.members?.some(
-                                    (m) => (typeof m === 'object' ? m._id : m) === user?._id
+                                    (m) => (typeof m === 'object' ? m._id || m.id : m) === currentUserId
                                 );
-                                const isAdmin = (typeof group.admin === 'object' ? group.admin?._id : group.admin) === user?._id;
+                                const isAdmin = (typeof group.admin === 'object' ? group.admin?._id || group.admin?.id : group.admin) === currentUserId;
+                                const isPending = group.pendingRequests?.some(
+                                    (id) => (typeof id === 'object' ? id._id || id.id : id) === currentUserId
+                                );
 
                                 return (
                                     <div 
@@ -130,10 +142,23 @@ export default function Dashboard() {
                                         }`}
                                     >
                                         <div>
+                                            {/* Category & Privacy Status */}
                                             <div className="flex items-center justify-between mb-3">
-                                                <span className="text-[10px] uppercase tracking-wider font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-md">
-                                                    {group.category || 'General'}
-                                                </span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[10px] uppercase tracking-wider font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 rounded-md">
+                                                        {group.category || 'General'}
+                                                    </span>
+                                                    {group.isPrivate ? (
+                                                        <span className="text-[10px] font-semibold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                            🔒 Private
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[10px] font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                            🌐 Public
+                                                        </span>
+                                                    )}
+                                                </div>
+
                                                 <span className="text-xs text-slate-400 flex items-center gap-1">
                                                     👥 {group.members?.length || 0} Members
                                                 </span>
@@ -175,17 +200,28 @@ export default function Dashboard() {
                                                     {isAdmin ? '👑 Admin' : '💬 Open Chat'}
                                                     <span className="text-[10px] opacity-75">➔</span>
                                                 </button>
+                                            ) : isPending ? (
+                                                <button
+                                                    disabled
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="px-3 py-1.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 text-xs font-bold rounded-lg opacity-80 cursor-not-allowed"
+                                                >
+                                                    ⏳ Requested
+                                                </button>
                                             ) : (
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        // FIX 3: Correct single argument call
-                                                        handleJoinGroup(group._id);
+                                                        handleJoinGroup(group);
                                                     }}
                                                     disabled={joinLoading === group._id}
-                                                    className="px-4 py-1.5 bg-slate-800 hover:bg-cyan-500 hover:text-black text-cyan-400 border border-cyan-500/30 text-xs font-bold rounded-lg transition-all disabled:opacity-50"
+                                                    className="px-4 py-1.5 bg-slate-800 hover:bg-cyan-500 hover:text-black text-cyan-400 border border-cyan-500/30 text-xs font-bold rounded-lg transition-all disabled:opacity-50 flex items-center gap-1"
                                                 >
-                                                    {joinLoading === group._id ? 'Joining...' : 'Join Group'}
+                                                    {joinLoading === group._id 
+                                                        ? 'Joining...' 
+                                                        : group.isPrivate 
+                                                        ? '🔒 Join Private' 
+                                                        : 'Join Group'}
                                                 </button>
                                             )}
                                         </div>

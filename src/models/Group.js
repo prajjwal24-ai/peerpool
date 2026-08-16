@@ -31,6 +31,10 @@ const groupSchema = new mongoose.Schema(
       type: Boolean,
       default: false, // Default Public
     },
+    joinCode: { 
+    type: String,
+     default: null 
+    },
     pendingRequests: [
       {
         type: mongoose.Schema.Types.ObjectId,
