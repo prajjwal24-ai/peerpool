@@ -13,24 +13,24 @@ function Login({ onSwitch }) {
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError('');
-        setIsSubmitting(true);
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
 
-        try {
-            const data = await login(email, password);
-            if (data) {
-                console.log('Login Successful! Data:', data);
-                navigate('/');
-            }
-        } catch (err) {
-            console.error('Login failed:', err);
-            setError(err.response?.data?.message || 'Invalid Email or Password!');
-        } finally {
-            setIsSubmitting(false);
+    try {
+        const cleanEmail = email.trim().toLowerCase();
+        const data = await login(cleanEmail, password);
+        if (data) {
+            console.log('Login Successful! Data:', data);
+            navigate('/');
         }
-    };
-
+    } catch (err) {
+        console.error('Login failed:', err);
+        setError(err.response?.data?.message || 'Invalid Email or Password!');
+    } finally {
+        setIsSubmitting(false);
+    }
+};
     return (
         <div className="relative flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white p-4 overflow-hidden">
             

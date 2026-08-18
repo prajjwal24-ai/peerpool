@@ -9,12 +9,15 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
-        if (storedUser) {
+        const token = localStorage.getItem('token');
+
+        if (storedUser && token) {
             try {
                 setUser(JSON.parse(storedUser));
             } catch (e) {
                 console.error("Failed to parse stored user", e);
                 localStorage.removeItem('user');
+                localStorage.removeItem('token');
             }
         }
         setLoading(false);
@@ -22,18 +25,19 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (email, password) => {
         try {
-            const res = await API.post('/auth/login', { email, password });
+            const res = await API.post('/auth/login', { 
+                email: email.trim(), 
+                password 
+            });
             
-            // Backend se res.data.user ya res.data me se user object extract karna
-            const userData = res.data.user || res.data;
-            const token = res.data.token;
+            const { token, user: userData } = res.data;
 
             if (token) {
                 localStorage.setItem('token', token);
                 localStorage.setItem('user', JSON.stringify(userData));
                 setUser(userData);
-                return res.data;
             }
+            return res.data;
         } catch (error) {
             console.error('Login failed:', error);
             throw error;
@@ -42,11 +46,13 @@ export const AuthProvider = ({ children }) => {
 
     const register = async (name, email, password) => {
         try {
-            const res = await API.post('/auth/register', { name, email, password });
-            console.log("Registration response:", res.data);
+            const res = await API.post('/auth/register', { 
+                name: name.trim(), 
+                email: email.trim(), 
+                password 
+            });
 
-            const userData = res.data.user || res.data;
-            const token = res.data.token;
+            const { token, user: userData } = res.data;
 
             if (token) {
                 localStorage.setItem('token', token);
@@ -67,7 +73,6 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        // 💡 FIX: Added `register` here in context value!
         <AuthContext.Provider value={{ user, login, register, logout, loading }}>
             {!loading && children}
         </AuthContext.Provider>

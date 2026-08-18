@@ -15,12 +15,12 @@ export default function GroupChat({ groupId, currentUser, token }) {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'https://peerpool.onrender.com';
 
   useEffect(() => {
     if (!groupId || !token) return;
 
-    // 1. Connect Socket safely with Auth
+    // 1. Connect Socket with Auth
     connectSocket(token);
 
     const joinRoom = () => {
@@ -34,19 +34,20 @@ export default function GroupChat({ groupId, currentUser, token }) {
       socket.on('connect', joinRoom);
     }
 
-    // 2. Fetch Initial History
+    // 2. Fetch Initial History (Matched with /api/chat/:groupId)
     const fetchChatHistory = async () => {
       try {
         setLoading(true);
         const response = await axios.get(
-          `${API_URL}/api/groups/${groupId}/messages`,
+          `${API_URL}/api/chat/${groupId}`,
           {
             headers: { Authorization: `Bearer ${token}` },
+            withCredentials: true,
           }
         );
 
         if (response.data.success) {
-          setMessages(response.data.data || response.data.messages || []);
+          setMessages(response.data.messages || response.data.data || []);
         }
       } catch (error) {
         console.error('Error fetching chat history:', error);
@@ -62,7 +63,6 @@ export default function GroupChat({ groupId, currentUser, token }) {
       console.log('📩 New Message Received on Client:', newMessage);
       if (!newMessage) return;
       setMessages((prevMessages) => {
-        // Prevent duplicate rendering
         const exists = prevMessages.some(
           (m) =>
             (m._id && newMessage._id && m._id === newMessage._id) ||
@@ -80,7 +80,6 @@ export default function GroupChat({ groupId, currentUser, token }) {
     socket.on('receive_message', handleReceiveMessage);
     socket.on('user_typing', handleUserTyping);
 
-    // Cleanup logic
     return () => {
       socket.off('connect', joinRoom);
       socket.off('receive_message', handleReceiveMessage);
@@ -126,6 +125,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data',
         },
+        withCredentials: true,
       });
 
       if (res.data.success) {
@@ -136,6 +136,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
           content: fileName || file.name || 'Attached File',
           fileUrl: fileUrl,
           fileType: fileType || 'document',
+          fileName: fileName || file.name,
         };
 
         socket.emit('send_message', messageData);
@@ -156,7 +157,13 @@ export default function GroupChat({ groupId, currentUser, token }) {
     socket.emit('typing', { groupId, isTyping: false });
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
-    const messageData = { groupId, content: text, fileUrl: '', fileType: '' };
+    const messageData = {
+      groupId,
+      content: text.trim(),
+      fileUrl: '',
+      fileType: 'text',
+      fileName: '',
+    };
 
     console.log('📤 Emitting send_message:', messageData);
     socket.emit('send_message', messageData);
@@ -181,7 +188,6 @@ export default function GroupChat({ groupId, currentUser, token }) {
 
             {/* Top Right Action Area */}
             <div className="flex items-center gap-3">
-              {/* 📁 Shared Files Folder Button */}
               <button
                 type="button"
                 onClick={() => setShowFilesModal(true)}
@@ -213,6 +219,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
                 const senderId = typeof msg.sender === 'object' ? (msg.sender?._id || msg.sender?.id) : msg.sender;
                 const currentUserId = currentUser?._id || currentUser?.id;
                 const isMe = String(senderId) === String(currentUserId);
+                const senderName = typeof msg.sender === 'object' && msg.sender?.name ? msg.sender.name : 'Peer';
 
                 return (
                   <div
@@ -227,10 +234,8 @@ export default function GroupChat({ groupId, currentUser, token }) {
                       }`}
                     >
                       {!isMe && (
-                        <p className="text-[10px] font-semibold text-indigo-400 mb-1">
-                          {typeof msg.sender === 'object' && msg.sender?.name
-                            ? msg.sender.name
-                            : 'Peer'}
+                        <p className="text-[11px] font-semibold text-indigo-300 mb-1">
+                          {senderName}
                         </p>
                       )}
 
@@ -238,14 +243,14 @@ export default function GroupChat({ groupId, currentUser, token }) {
                         <div className="flex flex-col gap-1.5 my-1">
                           <div className="flex items-center gap-2 bg-slate-900/80 p-2.5 rounded-lg border border-indigo-500/30">
                             <span className="text-xl">
-                              {msg.fileType === 'pdf'
+                              {msg.messageType === 'pdf' || msg.fileType === 'pdf'
                                 ? '📄'
-                                : msg.fileType === 'image'
+                                : msg.messageType === 'image' || msg.fileType === 'image'
                                 ? '🖼️'
                                 : '📝'}
                             </span>
                             <span className="text-xs font-mono truncate max-w-[180px] text-slate-200">
-                              {msg.content || 'Attached Document'}
+                              {msg.fileName || msg.content || 'Attached Document'}
                             </span>
                           </div>
                           <a

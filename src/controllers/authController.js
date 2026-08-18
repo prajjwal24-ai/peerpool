@@ -5,10 +5,17 @@ import jwt from 'jsonwebtoken';
 // REGISTER CONTROLLER
 export const registerUser = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        let { name, email, password } = req.body;
 
         if (!name || !email || !password) {
             return res.status(400).json({ message: 'All fields (Name, Email, Password) are required!' });
+        }
+
+        email = email.trim().toLowerCase();
+        name = name.trim();
+
+        if (password.length < 6) {
+            return res.status(400).json({ message: 'Password must be at least 6 characters long!' });
         }
 
         // Check if user already exists
@@ -17,22 +24,17 @@ export const registerUser = async (req, res) => {
             return res.status(400).json({ message: 'User already exists with this email!' });
         }
 
-        if (password.length <= 6) {
-            return res.status(400).json({ message: 'Password must be at least 6 characters long!' });
-        }
-
         // Hash password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        // const salt = await bcrypt.genSalt(10);
+        // const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Create new user in Mongo DB
+        // Create new user in MongoDB
         const user = await User.create({
             name,
             email,
-            password: hashedPassword,
+            password,
         });
 
-        // 💡 FIX: JWT Payload me 'name' aur 'email' add kar diya
         const token = jwt.sign(
             { id: user._id, name: user.name, email: user.email },
             process.env.JWT_SECRET || 'peerpool_secret_123',
@@ -56,28 +58,36 @@ export const registerUser = async (req, res) => {
 // LOGIN CONTROLLER
 export const loginUser = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        let { email, password } = req.body;
+
+        console.log("👉 Login Attempt Received Body:", req.body);
 
         if (!email || !password) {
+            console.log("❌ Missing email or password in request");
             return res.status(400).json({ message: 'Email and password are required!' });
         }
 
+        email = email.trim().toLowerCase();
+
         const user = await User.findOne({ email });
         if (!user) {
+            console.log(`❌ User with email "${email}" not found in DB`);
             return res.status(400).json({ message: 'Invalid email or password' });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
+            console.log(`❌ Password mismatch for email "${email}"`);
             return res.status(400).json({ message: 'Invalid email or password' });
         }
 
-        // 💡 FIX: JWT Payload me 'name' aur 'email' add kar diya
         const token = jwt.sign(
             { id: user._id, name: user.name, email: user.email },
             process.env.JWT_SECRET || 'peerpool_secret_123',
             { expiresIn: '7d' }
         );
+
+        console.log(`✅ Login successful for: ${email}`);
 
         res.status(200).json({
             token,

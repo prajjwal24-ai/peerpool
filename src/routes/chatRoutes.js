@@ -3,17 +3,41 @@ import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs';
 import { protect } from '../middleware/authMiddleware.js';
+import Message from '../models/Message.js';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
+// 1. GET CHAT HISTORY FOR A GROUP (Messages Persistence Fix)
+router.get('/:groupId', protect, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    // Fetch messages sorted by time and populate sender's name & email
+    const messages = await Message.find({ group: groupId })
+      .populate('sender', 'name email')
+      .sort({ createdAt: 1 });
+
+    return res.status(200).json({
+      success: true,
+      messages,
+    });
+  } catch (error) {
+    console.error('Fetch Messages Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to load messages',
+    });
+  }
+});
+
+// 2. FILE UPLOAD ROUTE (Cloudinary)
 router.post('/upload', protect, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file provided' });
     }
 
-    // Explicit config inside handler to ensure key is ALWAYS present
     cloudinary.config({
       cloud_name: process.env.CLOUDINARY_CLOUD_NAME?.trim(),
       api_key: process.env.CLOUDINARY_API_KEY?.trim(),
@@ -31,9 +55,7 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
     if (req.file.path && fs.existsSync(req.file.path)) {
       try {
         fs.unlinkSync(req.file.path);
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
     }
 
     const isPdf = req.file.mimetype.includes('pdf');
@@ -51,9 +73,7 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
     if (req.file && req.file.path && fs.existsSync(req.file.path)) {
       try {
         fs.unlinkSync(req.file.path);
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
     }
 
     return res.status(500).json({

@@ -1,10 +1,12 @@
 import { io } from 'socket.io-client';
 
-const URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Backend Render URL fallback
+const URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'https://peerpool.onrender.com';
 
 export const socket = io(URL, {
   autoConnect: false,
-  transports: ['websocket', 'polling'], // Fallback transport enable kar diya
+  withCredentials: true,
+  transports: ['websocket', 'polling'],
 });
 
 export const connectSocket = (token) => {
