@@ -21,9 +21,3 @@
 * **Deployment:** Vercel (Frontend), Render (Backend)
 
 ---
-
-## ⚙️ Environment Variables
-
-### Frontend (`/frontend/.env`)
-```env
-VITE_API_URL=http://localhost:5000
