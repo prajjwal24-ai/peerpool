@@ -61,7 +61,7 @@ app.use('/api/resources', resourceRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/chat', chatRoutes);
-
+app.use('/api/groups', groupRoutes);
 // Health Check Route
 app.get('/', (req, res) => {
   res.json({ success: true, message: 'PeerPool API is running smoothly!' });

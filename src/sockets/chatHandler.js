@@ -38,6 +38,24 @@ export const registerChatHandlers = (io, socket) => {
             console.error('Error saving or emitting socket message:', err);
         }
     });
+    // msg delete
+    socket.on('delete_message', async ({ messageId, groupId }) => {
+        try {
+            const message = await Message.findById(messageId);
+
+            // Security check: Only sender can delete their message
+            if (!message || String(message.sender) !== String(socket.user.id)) {
+            return socket.emit('error', { message: 'Unauthorized to delete this message' });
+            }
+
+            await Message.findByIdAndDelete(messageId);
+
+            // Broadcast deletion to all users in the room
+            io.to(groupId).emit('message_deleted', { messageId });
+        } catch (error) {
+            console.error('Delete message error:', error);
+        }
+    });
 
     // 3. Leave Group
     socket.on('leave_group', (groupId) => {

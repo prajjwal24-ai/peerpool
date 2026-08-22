@@ -1,12 +1,13 @@
 import express from 'express';
-import { protect } from '../middleware/authMiddleware.js';
+import { protect, verifyToken } from '../middleware/authMiddleware.js';
 import { 
   createGroup, 
   getAllGroups, 
   joinGroup, 
   respondToRequest, 
   getGroupById, 
-  getGroupMessages 
+  getGroupMessages,
+  leaveGroup
 } from '../controllers/groupController.js';
 
 const router = express.Router();
@@ -22,5 +23,6 @@ router.post('/:groupId/respond-request', protect, respondToRequest);
 // Dynamic routes (Fetch Data)
 router.get('/:id', protect, getGroupById);
 router.get('/:id/messages', protect, getGroupMessages);
+router.put('/:groupId/leave',verifyToken ,leaveGroup);
 
 export default router;

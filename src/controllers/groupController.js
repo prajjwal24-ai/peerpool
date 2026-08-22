@@ -219,3 +219,39 @@ export const respondToRequest = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
+export const leaveGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user?._id || req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User unauthorized' });
+    }
+
+    // $pull automatically finds and removes the userId (handles both ObjectId & strings)
+    const updatedGroup = await Group.findByIdAndUpdate(
+      groupId,
+      {
+        $pull: {
+          members: userId, // Agar members plain IDs ka array hai
+          // Agar members object array hai { user: userId }, toh uncomment karo:
+          // members: { user: userId }
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedGroup) {
+      return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Left group successfully',
+    });
+  } catch (error) {
+    console.error('Leave Group Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};

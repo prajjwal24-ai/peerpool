@@ -34,7 +34,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
       socket.on('connect', joinRoom);
     }
 
-    // 2. Fetch Initial History (Matched with /api/chat/:groupId)
+    // 2. Fetch Initial History
     const fetchChatHistory = async () => {
       try {
         setLoading(true);
@@ -60,7 +60,6 @@ export default function GroupChat({ groupId, currentUser, token }) {
 
     // 3. Socket Listeners
     const handleReceiveMessage = (newMessage) => {
-      console.log('📩 New Message Received on Client:', newMessage);
       if (!newMessage) return;
       setMessages((prevMessages) => {
         const exists = prevMessages.some(
@@ -73,16 +72,22 @@ export default function GroupChat({ groupId, currentUser, token }) {
       });
     };
 
+    const handleMessageDeleted = ({ messageId }) => {
+      setMessages((prevMessages) => prevMessages.filter((m) => m._id !== messageId));
+    };
+
     const handleUserTyping = ({ userName, isTyping }) => {
       setTypingUser(isTyping ? userName : '');
     };
 
     socket.on('receive_message', handleReceiveMessage);
+    socket.on('message_deleted', handleMessageDeleted);
     socket.on('user_typing', handleUserTyping);
 
     return () => {
       socket.off('connect', joinRoom);
       socket.off('receive_message', handleReceiveMessage);
+      socket.off('message_deleted', handleMessageDeleted);
       socket.off('user_typing', handleUserTyping);
       if (socket.connected) {
         socket.emit('leave_group', groupId);
@@ -165,9 +170,38 @@ export default function GroupChat({ groupId, currentUser, token }) {
       fileName: '',
     };
 
-    console.log('📤 Emitting send_message:', messageData);
     socket.emit('send_message', messageData);
     setText('');
+  };
+
+  const handleDeleteMessage = (messageId) => {
+    if (!messageId) return;
+    if (window.confirm('Are you sure you want to delete this message?')) {
+      socket.emit('delete_message', { messageId, groupId });
+    }
+  };
+
+  const handleLeaveGroup = async () => {
+    if (!window.confirm('Are you sure you want to leave this group?')) return;
+
+    try {
+      const res = await axios.put(
+        `${API_URL}/api/groups/${groupId}/leave`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true,
+        }
+      );
+
+      if (res.data.success || res.status === 200) {
+        socket.emit('leave_group', groupId);
+        window.location.href = '/dashboard';
+      }
+    } catch (err) {
+      console.error('Error leaving group:', err);
+      alert(err.response?.data?.message || 'Failed to leave group.');
+    }
   };
 
   const uploadedFilesCount = messages.filter((m) => Boolean(m.fileUrl)).length;
@@ -186,8 +220,8 @@ export default function GroupChat({ groupId, currentUser, token }) {
               <p className="text-xs text-indigo-400 font-mono">ID: {groupId}</p>
             </div>
 
-            {/* Top Right Action Area */}
-            <div className="flex items-center gap-3">
+            {/* Top Right Actions */}
+            <div className="flex items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => setShowFilesModal(true)}
@@ -197,7 +231,16 @@ export default function GroupChat({ groupId, currentUser, token }) {
                 <span>📁</span> Files ({uploadedFilesCount})
               </button>
 
-              <span className="flex h-2.5 w-2.5 relative">
+              <button
+                type="button"
+                onClick={handleLeaveGroup}
+                className="flex items-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:border-rose-500/60 px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95 shadow-sm"
+                title="Leave Group"
+              >
+                <span>🚪</span> Leave
+              </button>
+
+              <span className="flex h-2.5 w-2.5 relative ml-1">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
               </span>
@@ -219,52 +262,66 @@ export default function GroupChat({ groupId, currentUser, token }) {
                 const senderId = typeof msg.sender === 'object' ? (msg.sender?._id || msg.sender?.id) : msg.sender;
                 const currentUserId = currentUser?._id || currentUser?.id;
                 const isMe = String(senderId) === String(currentUserId);
-                const senderName = typeof msg.sender === 'object' && msg.sender?.name ? msg.sender.name : 'Peer';
+                const senderName = typeof msg.sender === 'object' && msg.sender?.name ? msg.sender.name : (msg.senderName || 'Peer');
 
                 return (
                   <div
                     key={msg._id || idx}
-                    className={`flex flex-col w-full ${isMe ? 'items-end' : 'items-start'}`}
+                    className={`group flex flex-col w-full ${isMe ? 'items-end' : 'items-start'}`}
                   >
-                    <div
-                      className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm backdrop-blur-sm ${
-                        isMe
-                          ? 'bg-indigo-600 text-white rounded-br-none shadow-md shadow-indigo-600/20'
-                          : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700'
-                      }`}
-                    >
-                      {!isMe && (
-                        <p className="text-[11px] font-semibold text-indigo-300 mb-1">
-                          {senderName}
-                        </p>
+                    <div className="flex items-center gap-1.5 max-w-[80%]">
+                      {/* Delete Option for sender */}
+                      {isMe && msg._id && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteMessage(msg._id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 transition-opacity text-xs"
+                          title="Delete message"
+                        >
+                          🗑️
+                        </button>
                       )}
 
-                      {msg.fileUrl ? (
-                        <div className="flex flex-col gap-1.5 my-1">
-                          <div className="flex items-center gap-2 bg-slate-900/80 p-2.5 rounded-lg border border-indigo-500/30">
-                            <span className="text-xl">
-                              {msg.messageType === 'pdf' || msg.fileType === 'pdf'
-                                ? '📄'
-                                : msg.messageType === 'image' || msg.fileType === 'image'
-                                ? '🖼️'
-                                : '📝'}
-                            </span>
-                            <span className="text-xs font-mono truncate max-w-[180px] text-slate-200">
-                              {msg.fileName || msg.content || 'Attached Document'}
-                            </span>
+                      <div
+                        className={`rounded-2xl px-4 py-2.5 text-sm backdrop-blur-sm ${
+                          isMe
+                            ? 'bg-indigo-600 text-white rounded-br-none shadow-md shadow-indigo-600/20'
+                            : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700'
+                        }`}
+                      >
+                        {!isMe && (
+                          <p className="text-[11px] font-semibold text-indigo-300 mb-1">
+                            {senderName}
+                          </p>
+                        )}
+
+                        {msg.fileUrl ? (
+                          <div className="flex flex-col gap-1.5 my-1">
+                            <div className="flex items-center gap-2 bg-slate-900/80 p-2.5 rounded-lg border border-indigo-500/30">
+                              <span className="text-xl">
+                                {msg.messageType === 'pdf' || msg.fileType === 'pdf'
+                                  ? '📄'
+                                  : msg.messageType === 'image' || msg.fileType === 'image'
+                                  ? '🖼️'
+                                  : '📝'}
+                              </span>
+                              <span className="text-xs font-mono truncate max-w-[180px] text-slate-200">
+                                {msg.fileName || msg.content || 'Attached Document'}
+                              </span>
+                            </div>
+                            <a
+                              href={msg.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] underline text-cyan-300 hover:text-cyan-200 flex items-center gap-1 self-end font-semibold mt-0.5"
+                            >
+                              ⬇ View / Download
+                            </a>
                           </div>
-                          <a
-                            href={msg.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[11px] underline text-cyan-300 hover:text-cyan-200 flex items-center gap-1 self-end font-semibold mt-0.5"
-                          >
-                            ⬇ View / Download
-                          </a>
-                        </div>
-                      ) : (
-                        <p className="break-words text-sm leading-relaxed">{msg.content}</p>
-                      )}
+                        ) : (
+                          <p className="break-words text-sm leading-relaxed">{msg.content}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -327,7 +384,7 @@ export default function GroupChat({ groupId, currentUser, token }) {
         </div>
       </ElectricBorder>
 
-      {/* Shared Files Modal Mounted */}
+      {/* Shared Files Modal */}
       <SharedFilesModal
         isOpen={showFilesModal}
         onClose={() => setShowFilesModal(false)}

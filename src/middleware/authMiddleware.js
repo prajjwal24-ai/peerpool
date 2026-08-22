@@ -29,3 +29,32 @@ export const protect = async (req,res, next)=>{
     return res.status(401).json({ message: 'Not authorized, no token provided' });
   }
 }
+
+export const verifyToken = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    // Check if token exists in "Bearer <token>" format
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Access Denied: No token provided' 
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // JWT Secret wahi use karo jo login/register me kiya tha
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'peerpool_secret_123');
+
+    // Attach decoded user payload to req.user (contains id, name, email)
+    req.user = decoded;
+    
+    next(); // Next controller (leaveGroup) par move karo
+  } catch (error) {
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Invalid or expired token' 
+    });
+  }
+};
