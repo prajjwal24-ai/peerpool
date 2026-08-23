@@ -1,6 +1,6 @@
 # 🚀 PeerPool
 
-**PeerPool** is a full-stack, real-time collaboration and group messaging platform designed for peers to connect, chat, and share study materials seamlessly. Tis nis v1.0.0
+**PeerPool** is a full-stack, real-time collaboration and group messaging platform designed for peers to connect, chat, and share study materials seamlessly. This is v1.0.0
 
 ---
 
