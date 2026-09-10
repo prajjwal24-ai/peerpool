@@ -1,6 +1,8 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { registerChatHandlers } from './chatHandler.js'; 
+// Note: Agar webrtcHandler bhi same 'socket' folder me hai, toh './webrtcHandler.js' use karein
+import webrtcHandler from './webrtcHandler.js'; 
 
 const allowedOrigins = [
     "http://localhost:5173",
@@ -44,7 +46,11 @@ export const initSocket = (httpServer) => {
     io.on('connection', (socket) => {
         console.log(`⚡ Socket Connected: ${socket.id} (User: ${socket.user?.name || socket.user?.id})`);
         
+        // 1. Existing Chat Handlers
         registerChatHandlers(io, socket);
+
+        // 2. New WebRTC Handlers (Integrated here!)
+        webrtcHandler(io, socket);
 
         socket.on('disconnect', () => {
             console.log(`Socket Disconnected: ${socket.id}`);

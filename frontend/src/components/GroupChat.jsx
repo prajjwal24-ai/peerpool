@@ -3,6 +3,11 @@ import axios from 'axios';
 import { socket, connectSocket } from '../socket';
 import SharedFilesModal from "./SharedFilesModel.jsx";
 import ElectricBorder from './ui/ElectricBorder.jsx';
+import VideoCall from './VideoCall.jsx'; // VideoCall Component Import
+import { 
+  Video, FolderOpen, LogOut, FileText, 
+  Image as ImageIcon, File, Trash2, Paperclip, Loader2, Send 
+} from 'lucide-react'; // Lucide Icons Import
 
 export default function GroupChat({ groupId, currentUser, token }) {
   const [messages, setMessages] = useState([]);
@@ -11,6 +16,8 @@ export default function GroupChat({ groupId, currentUser, token }) {
   const [uploading, setUploading] = useState(false);
   const [showFilesModal, setShowFilesModal] = useState(false);
   const [typingUser, setTypingUser] = useState('');
+  const [isInCall, setIsInCall] = useState(false); // WebRTC Video Call State
+
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -222,22 +229,33 @@ export default function GroupChat({ groupId, currentUser, token }) {
 
             {/* Top Right Actions */}
             <div className="flex items-center gap-2.5">
+              
+              {/* WebRTC Video Call Button */}
+              <button
+                type="button"
+                onClick={() => setIsInCall(true)}
+                className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/50 transition active:scale-95 shadow-sm shadow-indigo-600/20"
+                title="Join Video Call"
+              >
+                <Video size={14} /> Join Call
+              </button>
+
               <button
                 type="button"
                 onClick={() => setShowFilesModal(true)}
                 className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-700 hover:border-indigo-500/50 transition active:scale-95 shadow-sm"
                 title="View All Uploaded Files"
               >
-                <span>📁</span> Files ({uploadedFilesCount})
+                <FolderOpen size={14} /> Files ({uploadedFilesCount})
               </button>
 
               <button
                 type="button"
                 onClick={handleLeaveGroup}
-                className="flex items-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:border-rose-500/60 px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95 shadow-sm"
+                className="flex items-center gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:border-rose-500/60 px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95 shadow-sm"
                 title="Leave Group"
               >
-                <span>🚪</span> Leave
+                <LogOut size={14} /> Leave
               </button>
 
               <span className="flex h-2.5 w-2.5 relative ml-1">
@@ -275,10 +293,10 @@ export default function GroupChat({ groupId, currentUser, token }) {
                         <button
                           type="button"
                           onClick={() => handleDeleteMessage(msg._id)}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 transition-opacity text-xs"
+                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 transition-opacity"
                           title="Delete message"
                         >
-                          🗑️
+                          <Trash2 size={14} />
                         </button>
                       )}
 
@@ -298,12 +316,12 @@ export default function GroupChat({ groupId, currentUser, token }) {
                         {msg.fileUrl ? (
                           <div className="flex flex-col gap-1.5 my-1">
                             <div className="flex items-center gap-2 bg-slate-900/80 p-2.5 rounded-lg border border-indigo-500/30">
-                              <span className="text-xl">
+                              <span className="text-indigo-300">
                                 {msg.messageType === 'pdf' || msg.fileType === 'pdf'
-                                  ? '📄'
+                                  ? <FileText size={20} className="text-rose-400" />
                                   : msg.messageType === 'image' || msg.fileType === 'image'
-                                  ? '🖼️'
-                                  : '📝'}
+                                  ? <ImageIcon size={20} className="text-cyan-400" />
+                                  : <File size={20} className="text-slate-400" />}
                               </span>
                               <span className="text-xs font-mono truncate max-w-[180px] text-slate-200">
                                 {msg.fileName || msg.content || 'Attached Document'}
@@ -357,10 +375,10 @@ export default function GroupChat({ groupId, currentUser, token }) {
               type="button"
               disabled={uploading}
               onClick={() => fileInputRef.current?.click()}
-              className="p-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 rounded-xl text-sm border border-slate-700 transition-all disabled:opacity-50"
+              className="p-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 rounded-xl flex items-center justify-center border border-slate-700 transition-all disabled:opacity-50 min-w-[42px]"
               title="Attach File"
             >
-              {uploading ? '⏳' : '📎'}
+              {uploading ? <Loader2 size={18} className="animate-spin text-indigo-400" /> : <Paperclip size={18} />}
             </button>
 
             <input
@@ -375,9 +393,9 @@ export default function GroupChat({ groupId, currentUser, token }) {
             <button
               type="submit"
               disabled={uploading}
-              className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-indigo-600/30 disabled:opacity-50"
+              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-indigo-600/30 disabled:opacity-50"
             >
-              Send
+              <Send size={16} /> Send
             </button>
           </form>
 
@@ -391,6 +409,19 @@ export default function GroupChat({ groupId, currentUser, token }) {
         messages={messages}
         currentUser={currentUser}
       />
+
+      {/* Full Screen Video Call Overlay */}
+      {isInCall && (
+        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col p-4 md:p-8">
+          <div className="w-full h-full max-w-7xl mx-auto relative rounded-2xl overflow-hidden shadow-2xl border border-gray-800 bg-gray-950">
+            <VideoCall 
+              socket={socket} 
+              roomID={groupId} 
+              onLeave={() => setIsInCall(false)} 
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
