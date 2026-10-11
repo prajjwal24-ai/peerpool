@@ -6,11 +6,34 @@ import { Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff } from 'lucide-reac
 // Google ke public STUN servers (mesh network routing ke liye)
 const ICE_SERVERS = {
   iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
+    {
+      urls: "stun:stun.l.google.com:19302",
+    },
+    {
+      urls: "stun:stun.relay.metered.ca:80",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:80",
+      username: "ebf17207d2ba7fc3c9d04061",
+      credential: "Ctosg2lGTodyk1n0",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:80?transport=tcp",
+      username: "ebf17207d2ba7fc3c9d04061",
+      credential: "Ctosg2lGTodyk1n0",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:443",
+      username: "ebf17207d2ba7fc3c9d04061",
+      credential: "Ctosg2lGTodyk1n0",
+    },
+    {
+      urls: "turns:global.relay.metered.ca:443?transport=tcp",
+      username: "ebf17207d2ba7fc3c9d04061",
+      credential: "Ctosg2lGTodyk1n0",
+    },
   ],
 };
-
 // Remote video render karne ke liye helper component
 const RemoteVideo = ({ stream, peerID }) => {
   const videoRef = useRef();
